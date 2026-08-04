@@ -610,7 +610,7 @@ export const PrintView: React.FC = () => {
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '16px' }}>
               <p style={{ ...styles.footerTitle, marginBottom: '10px' }}>Project Drawings / Attachments</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {(isQuotation ? quotationData.projectImages : invoiceData?.projectImages)?.map((img, i) => (
+                {(isQuotation ? quotationData?.projectImages : invoiceData?.projectImages)?.map((img, i) => (
                   <img key={i} src={img} alt="Spec" style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} crossOrigin="anonymous" />
                 ))}
               </div>
