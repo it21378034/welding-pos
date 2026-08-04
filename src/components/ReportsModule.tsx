@@ -95,7 +95,7 @@ export const ReportsModule: React.FC = () => {
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
+          <table className="w-full text-left text-xs text-slate-300 min-w-[900px]">
             <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] font-extrabold border-b border-slate-800">
               <tr>
                 <th className="py-3 px-4">Invoice No</th>

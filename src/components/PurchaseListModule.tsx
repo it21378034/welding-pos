@@ -143,7 +143,7 @@ const PurchasePrintView: React.FC<{
             </div>
 
             {/* Items Table */}
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b-2 border-slate-900 text-slate-800 uppercase text-[10px] font-extrabold tracking-wider">
                   <th className="py-2.5 px-2 w-8">#</th>
