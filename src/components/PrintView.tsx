@@ -34,23 +34,50 @@ export const PrintView: React.FC = () => {
   const grandTotal = isQuotation ? quotationData?.grandTotal : invoiceData?.grandTotal;
   const terms = isQuotation ? quotationData?.terms : invoiceData?.terms;
 
-  const handleDownloadPDF = () => {
+  // Convert image URL to base64 for embedding in jsPDF
+  const getBase64Image = (url: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d')!.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(''); // Skip logo if it fails
+      img.src = url;
+    });
+
+  const handleDownloadPDF = async () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const cur = settings.currency;
+
+    // ── Logo ─────────────────────────────────────────────────────────────
+    const logoUrl = settings.logoUrl || '/logo.png';
+    const logoBase64 = await getBase64Image(logoUrl);
+    let textStartX = 14;
+    if (logoBase64) {
+      try {
+        doc.addImage(logoBase64, 'PNG', 14, 10, 16, 16);
+        textStartX = 34;
+      } catch (_) { textStartX = 14; }
+    }
 
     // ── Header ──────────────────────────────────────────────────────────
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(settings.name, 14, 18);
+    doc.text(settings.name, textStartX, 18);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(settings.tagline || '', 14, 24);
-    doc.text(settings.address || '', 14, 29);
-    doc.text(`Tel: ${settings.phone1}${settings.phone2 ? ' / ' + settings.phone2 : ''}  |  ${settings.email || ''}`, 14, 34);
+    doc.text(settings.tagline || '', textStartX, 24);
+    doc.text(settings.address || '', textStartX, 29);
+    doc.text(`Tel: ${settings.phone1}${settings.phone2 ? ' / ' + settings.phone2 : ''}  |  ${settings.email || ''}`, textStartX, 34);
 
     // Doc type (right aligned)
     doc.setFontSize(22);
@@ -230,7 +257,30 @@ export const PrintView: React.FC = () => {
   };
 
   const handleNativePrint = () => {
-    window.print();
+    const printArea = document.getElementById('printable-area');
+    if (!printArea) { window.print(); return; }
+    const popup = window.open('', '_blank', 'width=900,height=700');
+    if (!popup) { window.print(); return; }
+    popup.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${docNumber}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; background: white; color: #0f172a; }
+            @page { margin: 10mm; size: A4 portrait; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>${printArea.outerHTML}</body>
+      </html>
+    `);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => { popup.print(); popup.close(); }, 500);
   };
 
   // Shared inline styles for reliable cross-browser PDF rendering
