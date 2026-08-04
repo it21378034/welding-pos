@@ -295,7 +295,7 @@ const generateListNumber = () => {
 
 // ─── Main Module ─────────────────────────────────────────────────────────────
 export const PurchaseListModule: React.FC = () => {
-  const { settings, customers } = useApp();
+  const { customers } = useApp();
 
   const [lists, setLists] = useState<PurchaseList[]>([]);
   const [showForm, setShowForm] = useState(false);

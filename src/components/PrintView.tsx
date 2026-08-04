@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import type { Quotation, Invoice } from '../types';
-import { Printer, Download, X, EyeOff, Hammer } from 'lucide-react';
+import { Printer, Download, X, EyeOff } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 

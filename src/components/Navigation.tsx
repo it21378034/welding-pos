@@ -9,8 +9,7 @@ import {
   Settings as SettingsIcon, 
   Globe, 
   Moon, 
-  Sun, 
-  Hammer,
+  Sun,
   Menu,
   X,
   ShoppingCart
