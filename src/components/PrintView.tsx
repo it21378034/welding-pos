@@ -252,29 +252,60 @@ export const PrintView: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     doc.text('Authorized Workshop Signature', pageW - 14, footerY + 44, { align: 'right' });
 
-    // ── Project Images ───────────────────────────────────────────────────
+    // ── Project Images (inline thumbnails, matching the preview) ─────────
     const projImages = isQuotation ? quotationData?.projectImages : invoiceData?.projectImages;
     if (projImages && projImages.length > 0) {
-      doc.addPage();
-      doc.setFontSize(12);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let currentY = (doc as any).lastAutoTable?.finalY ?? 74;
+      // Add space after totals/footer
+      currentY = footerY + 50;
+
+      // Check if we need a new page for images section
+      if (currentY + 50 > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      // Section divider line
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(14, currentY, pageW - 14, currentY);
+      currentY += 6;
+
+      // Section title
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text('Project Drawings / Attachments', 14, 20);
-      
-      let imgY = 30;
-      const maxImgW = 160;
-      const maxImgH = 100;
+      doc.setTextColor(148, 163, 184);
+      doc.text('PROJECT DRAWINGS / ATTACHMENTS', 14, currentY);
+      currentY += 6;
+
+      // Thumbnail dimensions
+      const thumbW = 40;
+      const thumbH = 30;
+      const gap = 5;
+      let thumbX = 14;
 
       for (let i = 0; i < projImages.length; i++) {
         try {
+          // Wrap to next row if out of page width
+          if (thumbX + thumbW > pageW - 14) {
+            thumbX = 14;
+            currentY += thumbH + gap;
+          }
+          // New page if out of vertical space
+          if (currentY + thumbH > doc.internal.pageSize.getHeight() - 20) {
+            doc.addPage();
+            currentY = 20;
+            thumbX = 14;
+          }
           let format = 'PNG';
           if (projImages[i].startsWith('data:image/jpeg') || projImages[i].startsWith('data:image/jpg')) format = 'JPEG';
-          doc.addImage(projImages[i], format, 14, imgY, maxImgW, maxImgH);
-          imgY += maxImgH + 10;
-          if (imgY > 250 && i < projImages.length - 1) {
-            doc.addPage();
-            imgY = 20;
-          }
+          doc.addImage(projImages[i], format, thumbX, currentY, thumbW, thumbH);
+          // Border around thumbnail
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.2);
+          doc.rect(thumbX, currentY, thumbW, thumbH);
+          thumbX += thumbW + gap;
         } catch (e) {
           console.error('Failed to add image to PDF', e);
         }
