@@ -369,6 +369,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: q.notes,
       terms: settings.defaultInvoiceTerms,
       visibility: q.visibility,
+      projectImages: q.projectImages,
       createdAt: new Date().toISOString(),
     };
 

@@ -105,6 +105,7 @@ export interface Invoice {
   notes: string;
   terms: string;
   visibility?: PriceVisibilityOptions;
+  projectImages?: string[];
   createdAt: string;
 }
 

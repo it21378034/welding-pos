@@ -252,6 +252,35 @@ export const PrintView: React.FC = () => {
     doc.setFont('helvetica', 'bold');
     doc.text('Authorized Workshop Signature', pageW - 14, footerY + 44, { align: 'right' });
 
+    // ── Project Images ───────────────────────────────────────────────────
+    const projImages = isQuotation ? quotationData?.projectImages : invoiceData?.projectImages;
+    if (projImages && projImages.length > 0) {
+      doc.addPage();
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Project Drawings / Attachments', 14, 20);
+      
+      let imgY = 30;
+      const maxImgW = 160;
+      const maxImgH = 100;
+
+      for (let i = 0; i < projImages.length; i++) {
+        try {
+          let format = 'PNG';
+          if (projImages[i].startsWith('data:image/jpeg') || projImages[i].startsWith('data:image/jpg')) format = 'JPEG';
+          doc.addImage(projImages[i], format, 14, imgY, maxImgW, maxImgH);
+          imgY += maxImgH + 10;
+          if (imgY > 250 && i < projImages.length - 1) {
+            doc.addPage();
+            imgY = 20;
+          }
+        } catch (e) {
+          console.error('Failed to add image to PDF', e);
+        }
+      }
+    }
+
     // ── Save ─────────────────────────────────────────────────────────────
     doc.save(`${docNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
@@ -576,11 +605,12 @@ export const PrintView: React.FC = () => {
           )}
 
           {/* Project Images */}
-          {isQuotation && quotationData?.projectImages && quotationData.projectImages.length > 0 && (
+          {((isQuotation && quotationData?.projectImages && quotationData.projectImages.length > 0) ||
+            (!isQuotation && invoiceData?.projectImages && invoiceData.projectImages.length > 0)) && (
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '16px' }}>
               <p style={{ ...styles.footerTitle, marginBottom: '10px' }}>Project Drawings / Attachments</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {quotationData.projectImages.map((img, i) => (
+                {(isQuotation ? quotationData.projectImages : invoiceData?.projectImages)?.map((img, i) => (
                   <img key={i} src={img} alt="Spec" style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} crossOrigin="anonymous" />
                 ))}
               </div>
