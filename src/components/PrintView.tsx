@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import type { Quotation, Invoice } from '../types';
 import { Printer, Download, X, EyeOff } from 'lucide-react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
 
 export const PrintView: React.FC = () => {
   const { activePrintDocument, setActivePrintDocument, settings, t } = useApp();
@@ -34,49 +34,199 @@ export const PrintView: React.FC = () => {
   const grandTotal = isQuotation ? quotationData?.grandTotal : invoiceData?.grandTotal;
   const terms = isQuotation ? quotationData?.terms : invoiceData?.terms;
 
-  const handleDownloadPDF = async () => {
-    const element = printRef.current;
-    if (!element) return;
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const cur = settings.currency;
 
-    try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-      });
+    // ── Header ──────────────────────────────────────────────────────────
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(settings.name, 14, 18);
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(settings.tagline || '', 14, 24);
+    doc.text(settings.address || '', 14, 29);
+    doc.text(`Tel: ${settings.phone1}${settings.phone2 ? ' / ' + settings.phone2 : ''}  |  ${settings.email || ''}`, 14, 34);
 
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    // Doc type (right aligned)
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(isQuotation ? 'QUOTATION' : 'INVOICE', pageW - 14, 18, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(217, 119, 6);
+    doc.text(docNumber || '', pageW - 14, 25, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Date: ${docDate || ''}`, pageW - 14, 30, { align: 'right' });
+    doc.text(
+      isQuotation
+        ? `Valid Until: ${quotationData?.validUntil || ''}`
+        : `Due Date: ${invoiceData?.dueDate || ''}`,
+      pageW - 14,
+      35,
+      { align: 'right' }
+    );
 
-      if (imgHeight <= pageHeight) {
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      } else {
-        // Multi-page support
-        let yOffset = 0;
-        while (yOffset < imgHeight) {
-          if (yOffset > 0) pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, -yOffset, imgWidth, imgHeight);
-          yOffset += pageHeight;
-        }
+    // Divider line
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(14, 40, pageW - 14, 40);
+
+    // ── Customer & Project Box ───────────────────────────────────────────
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(14, 44, pageW - 28, 26, 2, 2, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(148, 163, 184);
+    doc.text('CUSTOMER DETAILS', 18, 50);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(customerName || '', 18, 56);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(customerPhone || '', 18, 61);
+    doc.text(customerAddress || '', 18, 66);
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(148, 163, 184);
+    doc.text('PROJECT SPECIFICATIONS', pageW / 2 + 2, 50);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    const projLines = doc.splitTextToSize(projectName || '', (pageW / 2) - 20);
+    doc.text(projLines, pageW / 2 + 2, 56);
+
+    // ── Items Table ──────────────────────────────────────────────────────
+    const showUnitP = isQuotation ? visibility.showPrices && visibility.showUnitPrice : true;
+    const showTotal = isQuotation ? visibility.showPrices && visibility.showTotal : true;
+
+    const head: string[][] = [['#', 'Item / Description', 'Unit', 'Qty']];
+    if (showUnitP) head[0].push('Unit Price');
+    if (showTotal) head[0].push('Total');
+
+    const body = (items || []).map((item, idx) => {
+      const row: string[] = [
+        `${idx + 1}`,
+        item.name + (item.description ? `\n${item.description}` : ''),
+        item.unit,
+        `${item.quantity}`,
+      ];
+      if (showUnitP) row.push(`${cur} ${item.unitPrice.toLocaleString()}`);
+      if (showTotal) row.push(`${cur} ${item.total.toLocaleString()}`);
+      return row;
+    });
+
+    autoTable(doc, {
+      startY: 74,
+      head,
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 7 },
+      bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center', textColor: [148, 163, 184] },
+        2: { halign: 'center' },
+        3: { halign: 'center', fontStyle: 'bold' },
+        ...(showUnitP ? { 4: { halign: 'right' } } : {}),
+        ...(showTotal ? { [showUnitP ? 5 : 4]: { halign: 'right', fontStyle: 'bold' } } : {}),
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Totals ───────────────────────────────────────────────────────────
+    if (showTotal) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let finalY = (doc as any).lastAutoTable.finalY + 4;
+      const totalsX = pageW - 80;
+      const totalsW = 66;
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+
+      doc.text('Subtotal:', totalsX, finalY);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${cur} ${subtotal?.toLocaleString() || '0'}`, totalsX + totalsW, finalY, { align: 'right' });
+      finalY += 6;
+
+      if (discount) {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(220, 38, 38);
+        doc.text('Discount:', totalsX, finalY);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`- ${cur} ${discount.toLocaleString()}`, totalsX + totalsW, finalY, { align: 'right' });
+        finalY += 6;
       }
 
-      pdf.save(`${docNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-      alert('PDF download failed. Please try the Print button instead and select "Save as PDF".');
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.4);
+      doc.line(totalsX, finalY - 1, totalsX + totalsW, finalY - 1);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text('Grand Total:', totalsX, finalY + 4);
+      doc.text(`${cur} ${grandTotal?.toLocaleString() || '0'}`, totalsX + totalsW, finalY + 4, { align: 'right' });
+      finalY += 10;
+
+      if (!isQuotation && invoiceData) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(22, 163, 74);
+        doc.text('Paid Amount:', totalsX, finalY + 4);
+        doc.text(`${cur} ${invoiceData.paidAmount.toLocaleString()}`, totalsX + totalsW, finalY + 4, { align: 'right' });
+        finalY += 8;
+        doc.setTextColor(220, 38, 38);
+        doc.setFontSize(10);
+        doc.text('Balance Due:', totalsX, finalY + 4);
+        doc.text(`${cur} ${invoiceData.balanceDue.toLocaleString()}`, totalsX + totalsW, finalY + 4, { align: 'right' });
+      }
     }
+
+    // ── Footer: Terms & Bank Details ─────────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const footerY = Math.max((doc as any).lastAutoTable?.finalY + 40 || 200, 200);
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(14, footerY, pageW - 14, footerY);
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('TERMS & CONDITIONS', 14, footerY + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    const termsLines = doc.splitTextToSize(terms || '', 80);
+    doc.text(termsLines, 14, footerY + 11);
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('BANK DEPOSIT DETAILS', 14, footerY + 30);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    const bankLines = doc.splitTextToSize(settings.bankDetails || '', 80);
+    doc.text(bankLines, 14, footerY + 35);
+
+    // Signature boxes
+    doc.setDrawColor(15, 23, 42);
+    doc.line(pageW - 70, footerY + 40, pageW - 14, footerY + 40);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Authorized Workshop Signature', pageW - 14, footerY + 44, { align: 'right' });
+
+    // ── Save ─────────────────────────────────────────────────────────────
+    doc.save(`${docNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleNativePrint = () => {
