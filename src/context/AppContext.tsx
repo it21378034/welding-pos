@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, Role, Language } from '../types';
+import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, Role, Language, PurchaseList } from '../types';
 import { initialSettings, initialCustomers, initialCatalogItems, initialQuotations, initialInvoices } from '../data/initialData';
 import { translations } from '../locales/i18n';
 import * as db from '../lib/supabaseService';
@@ -48,6 +48,12 @@ interface AppContextType {
   deleteInvoice: (id: string) => void;
   recordPayment: (invoiceId: string, payment: { amount: number; method: 'cash' | 'card' | 'bank_transfer' | 'cheque'; note?: string }) => void;
 
+  purchaseLists: PurchaseList[];
+  addPurchaseList: (pl: Omit<PurchaseList, 'id' | 'listNumber' | 'createdAt'>) => PurchaseList;
+  updatePurchaseList: (id: string, pl: Partial<PurchaseList>) => void;
+  deletePurchaseList: (id: string) => void;
+  duplicatePurchaseList: (id: string) => PurchaseList;
+
   // Active Print Target
   activePrintDocument: { type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null;
   setActivePrintDocument: (doc: { type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null) => void;
@@ -72,6 +78,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>(initialCatalogItems);
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+  const [purchaseLists, setPurchaseLists] = useState<PurchaseList[]>([]);
 
   const [activePrintDocument, setActivePrintDocument] = useState<{ type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null>(null);
 
@@ -432,6 +439,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const addPurchaseList = (plData: Omit<PurchaseList, 'id' | 'listNumber' | 'createdAt'>): PurchaseList => {
+    const newList: PurchaseList = {
+      ...plData,
+      id: 'pl-' + Date.now(),
+      listNumber: `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`,
+      createdAt: new Date().toISOString()
+    };
+    setPurchaseLists(prev => [newList, ...prev]);
+    syncToCloud(() => db.upsertPurchaseList(newList), 'addPurchaseList');
+    return newList;
+  };
+
+  const updatePurchaseList = (id: string, updated: Partial<PurchaseList>) => {
+    setPurchaseLists(prev => {
+      const newList = prev.map(pl => pl.id === id ? { ...pl, ...updated } : pl);
+      const changed = newList.find(pl => pl.id === id);
+      if (changed) syncToCloud(() => db.upsertPurchaseList(changed), 'updatePurchaseList');
+      return newList;
+    });
+  };
+
+  const deletePurchaseList = (id: string) => {
+    setPurchaseLists(prev => prev.filter(pl => pl.id !== id));
+    syncToCloud(() => db.deletePurchaseList(id), 'deletePurchaseList');
+  };
+
+  const duplicatePurchaseList = (id: string): PurchaseList => {
+    const listToDup = purchaseLists.find(pl => pl.id === id);
+    if (!listToDup) throw new Error('List not found');
+    const newList: PurchaseList = {
+      ...listToDup,
+      id: 'pl-' + Date.now(),
+      listNumber: `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`,
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString()
+    };
+    setPurchaseLists(prev => [newList, ...prev]);
+    syncToCloud(() => db.upsertPurchaseList(newList), 'duplicatePurchaseList');
+    return newList;
+  };
+
   const exportDatabase = () => {
     const exportData = {
       settings,
@@ -530,6 +578,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addInvoice,
         updateInvoice,
         deleteInvoice,
+        purchaseLists,
+        addPurchaseList,
+        updatePurchaseList,
+        deletePurchaseList,
+        duplicatePurchaseList,
         recordPayment,
 
         activePrintDocument,

@@ -4,30 +4,11 @@ import {
   Package, User, Calendar, ClipboardList, Edit3, Save, Copy
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import type { PurchaseList, PurchaseItem } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-interface PurchaseItem {
-  id: string;
-  name: string;
-  unit: string;
-  quantity: number;
-  notes?: string;
-}
-
-interface PurchaseList {
-  id: string;
-  listNumber: string;
-  date: string;
-  customerName: string;
-  customerPhone: string;
-  projectName: string;
-  items: PurchaseItem[];
-  notes: string;
-  createdAt: string;
-}
-
 // ─── Print Preview Component ─────────────────────────────────────────────────
 const PurchasePrintView: React.FC<{
   list: PurchaseList;
@@ -539,17 +520,12 @@ const emptyItem = (): PurchaseItem => ({
   notes: '',
 });
 
-let listCounter = 1;
-const generateListNumber = () => {
-  const num = String(listCounter++).padStart(3, '0');
-  return `PL-${new Date().getFullYear()}-${num}`;
-};
+
 
 // ─── Main Module ─────────────────────────────────────────────────────────────
 export const PurchaseListModule: React.FC = () => {
-  const { customers } = useApp();
+  const { customers, purchaseLists, addPurchaseList, updatePurchaseList, deletePurchaseList, duplicatePurchaseList } = useApp();
 
-  const [lists, setLists] = useState<PurchaseList[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -605,27 +581,22 @@ export const PurchaseListModule: React.FC = () => {
     const validItems = items.filter(i => i.name.trim() !== '');
 
     if (editingId) {
-      setLists(prev => prev.map(l => l.id === editingId ? {
-        ...l,
+      updatePurchaseList(editingId, {
         customerName,
         customerPhone,
         projectName,
         notes,
         items: validItems,
-      } : l));
+      });
     } else {
-      const newList: PurchaseList = {
-        id: 'pl-' + Date.now(),
-        listNumber: generateListNumber(),
-        date: new Date().toISOString().split('T')[0],
+      addPurchaseList({
         customerName,
         customerPhone,
         projectName,
         notes,
         items: validItems,
-        createdAt: new Date().toISOString(),
-      };
-      setLists(prev => [newList, ...prev]);
+        date: new Date().toISOString().split('T')[0],
+      });
     }
     setShowForm(false);
     resetForm();
@@ -633,19 +604,12 @@ export const PurchaseListModule: React.FC = () => {
 
   const handleDelete = (id: string) => {
     if (confirm('Delete this purchase list?')) {
-      setLists(prev => prev.filter(l => l.id !== id));
+      deletePurchaseList(id);
     }
   };
 
   const handleDuplicate = (list: PurchaseList) => {
-    const dup: PurchaseList = {
-      ...list,
-      id: 'pl-' + Date.now(),
-      listNumber: generateListNumber(),
-      date: new Date().toISOString().split('T')[0],
-      createdAt: new Date().toISOString(),
-    };
-    setLists(prev => [dup, ...prev]);
+    duplicatePurchaseList(list.id);
   };
 
   const addItem = () => setItems(prev => [...prev, emptyItem()]);
@@ -879,7 +843,7 @@ export const PurchaseListModule: React.FC = () => {
       )}
 
       {/* ── List Table ────────────────────────────────────────────────────── */}
-      {lists.length === 0 ? (
+      {purchaseLists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="p-5 rounded-2xl bg-amber-500/10 text-amber-400 mb-4">
             <ShoppingCart className="w-10 h-10" />
@@ -895,7 +859,7 @@ export const PurchaseListModule: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {lists.map(list => (
+          {purchaseLists.map(list => (
             <div key={list.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition shadow-lg">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-4">

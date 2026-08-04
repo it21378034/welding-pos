@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings } from '../types';
+import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, PurchaseList } from '../types';
 
 // ── Helper: snake_case ↔ camelCase mappers ──────────────────
 
@@ -347,6 +347,68 @@ export async function insertInvoice(inv: Invoice): Promise<void> {
   const { error } = await supabase.from('invoices').insert(invoiceToRow(inv));
   if (error) throw new Error(error.message);
 }
+
+export async function fetchInvoices(): Promise<Invoice[]> {
+  const { data, error } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(rowToInvoice);
+}
+
+export async function upsertInvoice(invoice: Invoice): Promise<void> {
+  const { error } = await supabase.from('invoices').upsert(invoiceToRow(invoice));
+  if (error) throw error;
+}
+
+export async function deleteInvoice(id: string): Promise<void> {
+  const { error } = await supabase.from('invoices').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── PURCHASE LISTS ───────────────────────────────────────────────────
+
+function purchaseListToRow(pl: PurchaseList) {
+  return {
+    id: pl.id,
+    list_number: pl.listNumber,
+    date: pl.date,
+    customer_name: pl.customerName,
+    customer_phone: pl.customerPhone,
+    project_name: pl.projectName,
+    items: pl.items,
+    notes: pl.notes,
+    created_at: pl.createdAt,
+  };
+}
+
+function rowToPurchaseList(r: any): PurchaseList {
+  return {
+    id: r.id,
+    listNumber: r.list_number,
+    date: r.date,
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone,
+    projectName: r.project_name,
+    items: r.items || [],
+    notes: r.notes || '',
+    createdAt: r.created_at,
+  };
+}
+
+export async function fetchPurchaseLists(): Promise<PurchaseList[]> {
+  const { data, error } = await supabase.from('purchase_lists').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(rowToPurchaseList);
+}
+
+export async function upsertPurchaseList(pl: PurchaseList): Promise<void> {
+  const { error } = await supabase.from('purchase_lists').upsert(purchaseListToRow(pl));
+  if (error) throw error;
+}
+
+export async function deletePurchaseList(id: string): Promise<void> {
+  const { error } = await supabase.from('purchase_lists').delete().eq('id', id);
+  if (error) throw error;
+};
 
 export async function updateInvoiceDb(id: string, updated: Partial<Invoice>): Promise<void> {
   const row: any = {};

@@ -124,3 +124,19 @@ CREATE POLICY "Allow all access to company_settings" ON company_settings FOR ALL
 -- ============================================================
 -- Done! All 5 tables created with open RLS policies.
 -- ============================================================
+
+-- 6. PURCHASE LISTS
+CREATE TABLE IF NOT EXISTS purchase_lists (
+  id TEXT PRIMARY KEY,
+  list_number TEXT NOT NULL,
+  date TEXT NOT NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  customer_phone TEXT NOT NULL DEFAULT '',
+  project_name TEXT NOT NULL DEFAULT '',
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE purchase_lists ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access to purchase_lists" ON purchase_lists FOR ALL USING (true) WITH CHECK (true);

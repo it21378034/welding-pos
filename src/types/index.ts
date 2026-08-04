@@ -126,3 +126,23 @@ export interface CompanySettings {
   thermalPrinterWidth: '58mm' | '80mm';
   bankDetails: string;
 }
+
+export interface PurchaseItem {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface PurchaseList {
+  id: string;
+  listNumber: string;
+  date: string;
+  customerName: string;
+  customerPhone: string;
+  projectName: string;
+  items: PurchaseItem[];
+  notes: string;
+  createdAt: string;
+}
