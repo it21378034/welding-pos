@@ -127,6 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cloudData.quotations.length > 0 ||
           cloudData.invoices.length > 0 ||
           cloudData.catalogItems.length > 0 ||
+          cloudData.purchaseLists.length > 0 ||
           cloudData.settings !== null;
 
         if (hasCloudData) {
@@ -136,6 +137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCatalogItems(cloudData.catalogItems);
           setQuotations(cloudData.quotations);
           setInvoices(cloudData.invoices);
+          setPurchaseLists(cloudData.purchaseLists);
           setIsOnline(true);
         } else {
           // Cloud is empty → try seeding from localStorage
@@ -162,6 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 catalogItems: localCatalog,
                 quotations: localQuotations,
                 invoices: localInvoices,
+                purchaseLists: parsed.purchaseLists || [],
               });
               setIsOnline(true);
             } else {
@@ -172,6 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 catalogItems: initialCatalogItems,
                 quotations: initialQuotations,
                 invoices: initialInvoices,
+                purchaseLists: [],
               });
               setIsOnline(true);
             }

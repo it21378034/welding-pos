@@ -218,19 +218,21 @@ export interface SupabaseAppData {
   catalogItems: CatalogItem[];
   quotations: Quotation[];
   invoices: Invoice[];
+  purchaseLists: PurchaseList[];
 }
 
 export async function fetchAllData(): Promise<SupabaseAppData> {
-  const [settingsRes, customersRes, catalogRes, quotationsRes, invoicesRes] = await Promise.all([
+  const [settingsRes, customersRes, catalogRes, quotationsRes, invoicesRes, purchaseListsRes] = await Promise.all([
     supabase.from('company_settings').select('*').eq('id', 'default').maybeSingle(),
     supabase.from('customers').select('*').order('created_at', { ascending: false }),
     supabase.from('catalog_items').select('*'),
     supabase.from('quotations').select('*').order('created_at', { ascending: false }),
     supabase.from('invoices').select('*').order('created_at', { ascending: false }),
+    supabase.from('purchase_lists').select('*').order('created_at', { ascending: false }),
   ]);
 
   // Throw on any fatal error
-  for (const res of [settingsRes, customersRes, catalogRes, quotationsRes, invoicesRes]) {
+  for (const res of [settingsRes, customersRes, catalogRes, quotationsRes, invoicesRes, purchaseListsRes]) {
     if (res.error) throw new Error(res.error.message);
   }
 
@@ -240,6 +242,7 @@ export async function fetchAllData(): Promise<SupabaseAppData> {
     catalogItems: (catalogRes.data || []).map(rowToCatalogItem),
     quotations: (quotationsRes.data || []).map(rowToQuotation),
     invoices: (invoicesRes.data || []).map(rowToInvoice),
+    purchaseLists: (purchaseListsRes.data || []).map(rowToPurchaseList),
   };
 }
 
@@ -453,6 +456,7 @@ export async function seedFromLocalStorage(data: {
   catalogItems: CatalogItem[];
   quotations: Quotation[];
   invoices: Invoice[];
+  purchaseLists?: PurchaseList[];
 }): Promise<void> {
   console.log('🌱 Seeding Supabase from localStorage...');
 
@@ -489,6 +493,14 @@ export async function seedFromLocalStorage(data: {
       .from('invoices')
       .upsert(data.invoices.map(invoiceToRow), { onConflict: 'id' });
     if (error) console.error('Seed invoices error:', error.message);
+  }
+
+  // Purchase Lists
+  if (data.purchaseLists && data.purchaseLists.length > 0) {
+    const { error } = await supabase
+      .from('purchase_lists')
+      .upsert(data.purchaseLists.map(purchaseListToRow), { onConflict: 'id' });
+    if (error) console.error('Seed purchase lists error:', error.message);
   }
 
   console.log('✅ Seeding complete!');
