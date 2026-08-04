@@ -151,7 +151,7 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
             alt="Logo" 
             className="w-7 h-7 object-contain rounded-full bg-slate-800 border border-slate-700 p-0.5" 
           />
-          <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2 truncate max-w-[180px] sm:max-w-none">
+          <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2 truncate max-w-[120px] sm:max-w-none">
             {settings.name}
           </h2>
         </div>
@@ -160,7 +160,7 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
         </span>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Role Switcher */}
         <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700/60 text-xs">
           <button

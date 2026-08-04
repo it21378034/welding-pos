@@ -526,9 +526,9 @@ export const QuotationModule: React.FC = () => {
 
           {/* Section 3: Line Items Table */}
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <h3 className="font-extrabold text-slate-100 text-base">2. Itemized Materials & Services</h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   onChange={e => {
                     const found = catalogItems.find(ci => ci.id === e.target.value);
