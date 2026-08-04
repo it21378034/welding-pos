@@ -59,7 +59,7 @@ const MainLayout: React.FC = () => {
       <div className="flex-1 flex overflow-hidden relative">
         <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 w-full max-w-full">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 w-full max-w-full print:hidden">
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'quotations' && <QuotationModule />}
           {activeTab === 'invoices' && <InvoiceModule />}

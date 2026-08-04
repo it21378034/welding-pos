@@ -29,7 +29,11 @@ export const PrintView: React.FC = () => {
     const element = document.getElementById('printable-area');
     if (!element) return;
 
-    const canvas = await html2canvas(element, { scale: 2 });
+    const canvas = await html2canvas(element, { 
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    });
     const imgData = canvas.toDataURL('image/png');
 
     const pdf = new jsPDF('p', 'mm', 'a4');
