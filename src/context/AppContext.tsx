@@ -3,6 +3,7 @@ import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, Role, 
 import { initialSettings, initialCustomers, initialCatalogItems, initialQuotations, initialInvoices } from '../data/initialData';
 import { translations } from '../locales/i18n';
 import * as db from '../lib/supabaseService';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 interface AppContextType {
   // Navigation & Theme
@@ -91,6 +92,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Fire-and-forget Supabase write with error handling
   const syncToCloud = useCallback((operation: () => Promise<void>, label: string) => {
+    if (!isSupabaseConfigured) return;
     operation().catch((err) => {
       console.error(`☁️ Sync failed [${label}]:`, err.message);
       setSyncError(`Sync failed: ${label}`);
@@ -115,6 +117,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (e) {
         console.error('Failed to read localStorage prefs:', e);
+      }
+
+      if (!isSupabaseConfigured) {
+        try {
+          const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (savedData) {
+            const parsed = JSON.parse(savedData);
+            if (parsed.settings) setSettings({ ...initialSettings, ...parsed.settings });
+            if (parsed.customers) setCustomers(parsed.customers);
+            if (parsed.catalogItems) setCatalogItems(parsed.catalogItems);
+            if (parsed.quotations) setQuotations(parsed.quotations);
+            if (parsed.invoices) setInvoices(parsed.invoices);
+            if (parsed.purchaseLists) setPurchaseLists(parsed.purchaseLists);
+          }
+        } catch (e) {
+          console.error('Failed to parse local storage fallback:', e);
+        }
+        setIsOnline(false);
+        if (!cancelled) setIsLoading(false);
+        return;
       }
 
       // Attempt to fetch from Supabase
@@ -221,6 +243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         catalogItems,
         quotations,
         invoices,
+        purchaseLists,
         theme,
         language,
       };
@@ -228,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Failed to save state to local storage:', e);
     }
-  }, [settings, customers, catalogItems, quotations, invoices, theme, language, isLoading]);
+  }, [settings, customers, catalogItems, quotations, invoices, purchaseLists, theme, language, isLoading]);
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));

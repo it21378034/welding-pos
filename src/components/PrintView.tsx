@@ -50,18 +50,47 @@ export const PrintView: React.FC = () => {
       img.src = url;
     });
 
+  // Create a faded (watermark) version of the logo using canvas globalAlpha
+  const getWatermarkBase64 = (url: string, opacity = 0.06): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const size = 600; // render at high-res
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        ctx.globalAlpha = opacity;
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve('');
+      img.src = url;
+    });
+
   const handleDownloadPDF = async () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     const cur = settings.currency;
 
+    // ── Header Background ─────────────────────────────────────────────────
+    doc.setFillColor(239, 246, 255); // Light blue: #eff6ff
+    doc.roundedRect(10, 6, pageW - 20, 36, 2, 2, 'F');
+
     // ── Logo ─────────────────────────────────────────────────────────────
     const logoUrl = settings.logoUrl || '/logo.png';
-    const logoBase64 = await getBase64Image(logoUrl);
+    const [logoBase64, watermarkBase64] = await Promise.all([
+      getBase64Image(logoUrl),
+      getWatermarkBase64(logoUrl, 0.06),
+    ]);
     let textStartX = 14;
     if (logoBase64) {
       try {
         doc.addImage(logoBase64, 'PNG', 14, 10, 16, 16);
+        doc.setDrawColor(30, 58, 138); // Navy blue frame
+        doc.setLineWidth(0.6);
+        doc.circle(22, 18, 8.5, 'S');
         textStartX = 34;
       } catch (_) { textStartX = 14; }
     }
@@ -69,20 +98,22 @@ export const PrintView: React.FC = () => {
     // ── Header ──────────────────────────────────────────────────────────
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
+    doc.setTextColor(30, 58, 138);
     doc.text(settings.name, textStartX, 18);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(100, 116, 139);
     doc.text(settings.tagline || '', textStartX, 24);
+    
+    doc.setTextColor(100, 116, 139);
     doc.text(settings.address || '', textStartX, 29);
     doc.text(`Tel: ${settings.phone1}${settings.phone2 ? ' / ' + settings.phone2 : ''}  |  ${settings.email || ''}`, textStartX, 34);
 
     // Doc type (right aligned)
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
+    doc.setTextColor(30, 58, 138);
     doc.text(isQuotation ? 'QUOTATION' : 'INVOICE', pageW - 14, 18, { align: 'right' });
     doc.setFontSize(10);
     doc.setTextColor(217, 119, 6);
@@ -99,45 +130,58 @@ export const PrintView: React.FC = () => {
       { align: 'right' }
     );
 
-    // Divider line
-    doc.setDrawColor(15, 23, 42);
-    doc.setLineWidth(0.5);
-    doc.line(14, 40, pageW - 14, 40);
+    // Divider line — aligned with bottom edge of header background box
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(0.7);
+    doc.line(10, 42, pageW - 10, 42);
 
     // ── Customer & Project Box ───────────────────────────────────────────
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(14, 44, pageW - 28, 26, 2, 2, 'F');
+    doc.setDrawColor(30, 58, 138); // Navy blue border
+    doc.setLineWidth(0.4);
+    doc.roundedRect(14, 47, pageW - 28, 34, 2, 2, 'FD'); // Taller box, starts lower
+
+    // Customer Details (left column)
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(148, 163, 184);
-    doc.text('CUSTOMER DETAILS', 18, 50);
+    doc.text('CUSTOMER DETAILS', 18, 54);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(customerName || '', 18, 56);
+    doc.text(customerName || '', 18, 61);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(customerPhone || '', 18, 61);
-    doc.text(customerAddress || '', 18, 66);
+    doc.text(customerPhone || '', 18, 67);
+    doc.text(customerAddress || '', 18, 73);
 
+    // Project Specifications (right column)
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(148, 163, 184);
-    doc.text('PROJECT SPECIFICATIONS', pageW / 2 + 2, 50);
+    doc.text('PROJECT SPECIFICATIONS', pageW / 2 + 2, 54);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
     const projLines = doc.splitTextToSize(projectName || '', (pageW / 2) - 20);
-    doc.text(projLines, pageW / 2 + 2, 56);
+    doc.text(projLines, pageW / 2 + 2, 61);
+
+    // ── Watermark (Canvas pre-processed for reliable opacity in PDF) ──────
+    if (watermarkBase64) {
+      const wmSize = 140;
+      const wmX = (pageW - wmSize) / 2;
+      const wmY = (doc.internal.pageSize.getHeight() - wmSize) / 2;
+      doc.addImage(watermarkBase64, 'PNG', wmX, wmY, wmSize, wmSize);
+    }
 
     // ── Items Table ──────────────────────────────────────────────────────
     const showUnitP = isQuotation ? visibility.showPrices && visibility.showUnitPrice : true;
     const showTotal = isQuotation ? visibility.showPrices && visibility.showTotal : true;
 
-    const head: string[][] = [['#', 'Item / Description', 'Unit', 'Qty']];
-    if (showUnitP) head[0].push('Unit Price');
-    if (showTotal) head[0].push('Total');
+    const head: string[][] = [['#', 'ITEM / FABRICATION DESCRIPTION', 'UNIT', 'QTY']];
+    if (showUnitP) head[0].push(`UNIT PRICE (${cur})`);
+    if (showTotal) head[0].push(`TOTAL (${cur})`);
 
     const body = (items || []).map((item, idx) => {
       const row: string[] = [
@@ -146,19 +190,30 @@ export const PrintView: React.FC = () => {
         item.unit,
         `${item.quantity}`,
       ];
-      if (showUnitP) row.push(`${cur} ${item.unitPrice.toLocaleString()}`);
-      if (showTotal) row.push(`${cur} ${item.total.toLocaleString()}`);
+      if (showUnitP) row.push(`${item.unitPrice.toLocaleString()}`);
+      if (showTotal) row.push(`${item.total.toLocaleString()}`);
       return row;
     });
 
     autoTable(doc, {
-      startY: 74,
+      startY: 86,
       head,
       body,
-      theme: 'grid',
-      headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold', fontSize: 7 },
-      bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      theme: 'plain',
+      headStyles: {
+        fillColor: [248, 250, 252],
+        textColor: [30, 58, 138],
+        fontStyle: 'bold',
+        fontSize: 7,
+        lineWidth: 0,
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [30, 41, 59],
+        fillColor: false, // transparent — watermark shows through
+        lineWidth: 0,
+      },
+      alternateRowStyles: { fillColor: false },
       columnStyles: {
         0: { cellWidth: 8, halign: 'center', textColor: [148, 163, 184] },
         2: { halign: 'center' },
@@ -167,9 +222,39 @@ export const PrintView: React.FC = () => {
         ...(showTotal ? { [showUnitP ? 5 : 4]: { halign: 'right', fontStyle: 'bold' } } : {}),
       },
       margin: { left: 14, right: 14 },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      didParseCell: (data: any) => {
+        // Center-align UNIT PRICE and TOTAL header cells only
+        if (data.section === 'head') {
+          const unitPriceCol = 4;
+          const totalCol = showUnitP ? 5 : 4;
+          if (
+            (showUnitP && data.column.index === unitPriceCol) ||
+            (showTotal && data.column.index === totalCol)
+          ) {
+            data.cell.styles.halign = 'center';
+          }
+        }
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      didDrawCell: (data: any) => {
+        const { x, y, width, height } = data.cell;
+        if (data.section === 'head') {
+          // Solid navy blue bottom border under header
+          doc.setDrawColor(30, 58, 138);
+          doc.setLineWidth(0.7);
+          doc.line(x, y + height, x + width, y + height);
+        } else if (data.section === 'body') {
+          // Light gray separator between rows
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.2);
+          doc.line(x, y + height, x + width, y + height);
+        }
+      },
     });
 
     // ── Totals ───────────────────────────────────────────────────────────
+    let totalsEndY = 0; // Track where the totals section ends
     if (showTotal) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let finalY = (doc as any).lastAutoTable.finalY + 4;
@@ -195,34 +280,45 @@ export const PrintView: React.FC = () => {
         finalY += 6;
       }
 
-      doc.setDrawColor(15, 23, 42);
+      doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.4);
       doc.line(totalsX, finalY - 1, totalsX + totalsW, finalY - 1);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(30, 58, 138);
       doc.text('Grand Total:', totalsX, finalY + 4);
       doc.text(`${cur} ${grandTotal?.toLocaleString() || '0'}`, totalsX + totalsW, finalY + 4, { align: 'right' });
-      finalY += 10;
+      
+      // Double underline for Grand Total
+      doc.setDrawColor(30, 58, 138);
+      doc.setLineWidth(0.5);
+      doc.line(totalsX, finalY + 6, totalsX + totalsW, finalY + 6);
+      doc.line(totalsX, finalY + 7.5, totalsX + totalsW, finalY + 7.5);
+
+      finalY += 12;
 
       if (!isQuotation && invoiceData) {
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(22, 163, 74);
-        doc.text('Paid Amount:', totalsX, finalY + 4);
-        doc.text(`${cur} ${invoiceData.paidAmount.toLocaleString()}`, totalsX + totalsW, finalY + 4, { align: 'right' });
-        finalY += 8;
+        doc.text('Paid Amount:', totalsX, finalY);
+        doc.text(`${cur} ${invoiceData.paidAmount.toLocaleString()}`, totalsX + totalsW, finalY, { align: 'right' });
+        finalY += 7;
         doc.setTextColor(220, 38, 38);
         doc.setFontSize(10);
-        doc.text('Balance Due:', totalsX, finalY + 4);
-        doc.text(`${cur} ${invoiceData.balanceDue.toLocaleString()}`, totalsX + totalsW, finalY + 4, { align: 'right' });
+        doc.text('Balance Due:', totalsX, finalY);
+        doc.text(`${cur} ${invoiceData.balanceDue.toLocaleString()}`, totalsX + totalsW, finalY, { align: 'right' });
+        finalY += 10;
       }
+      totalsEndY = finalY;
     }
 
     // ── Project Images (inline thumbnails — placed BEFORE footer) ─────────
     const projImages = isQuotation ? quotationData?.projectImages : invoiceData?.projectImages;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let afterTotalsY = (doc as any).lastAutoTable?.finalY + 20 || 140;
+    const tableEndY = (doc as any).lastAutoTable?.finalY || 140;
+    // Use whichever is lower: table end or totals end, with minimal padding
+    let afterTotalsY = Math.max(tableEndY, totalsEndY) + 4;
 
     if (projImages && projImages.length > 0) {
       // Section divider line
@@ -269,40 +365,88 @@ export const PrintView: React.FC = () => {
           console.error('Failed to add image to PDF', e);
         }
       }
-      afterTotalsY += thumbH + 10;
+      afterTotalsY += thumbH + 6;
     }
 
     // ── Footer: Terms & Bank Details ─────────────────────────────────────
-    const footerY = Math.max(afterTotalsY + 10, afterTotalsY + 10);
-    doc.setDrawColor(15, 23, 42);
+    const pageH = doc.internal.pageSize.getHeight();
+    let footerStartY = afterTotalsY + 6;
+    // Footer needs ~70mm. If it won't fit, add a new page.
+    if (footerStartY + 70 > pageH) {
+      doc.addPage();
+      footerStartY = 20;
+    }
+
+    doc.setDrawColor(30, 58, 138); // Deep Navy
     doc.setLineWidth(0.5);
-    doc.line(14, footerY, pageW - 14, footerY);
+    doc.line(14, footerStartY, pageW - 14, footerStartY);
 
+    let currentY = footerStartY + 6;
+    
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text('TERMS & CONDITIONS', 14, footerY + 6);
+    doc.setTextColor(15, 23, 42); // Match HTML (Black)
+    doc.text('TERMS & CONDITIONS', 14, currentY);
+    
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(100, 116, 139); // Clean Gray
     const termsLines = doc.splitTextToSize(terms || '', 80);
-    doc.text(termsLines, 14, footerY + 11);
+    doc.text(termsLines, 14, currentY + 4);
+    
+    currentY += 6 + (termsLines.length * 3.5);
 
-    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text('BANK DEPOSIT DETAILS', 14, footerY + 30);
+    doc.setTextColor(15, 23, 42); // Match HTML (Black)
+    doc.text('BANK DEPOSIT DETAILS', 14, currentY);
+    
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(100, 116, 139); // Clean Gray
     const bankLines = doc.splitTextToSize(settings.bankDetails || '', 80);
-    doc.text(bankLines, 14, footerY + 35);
+    doc.text(bankLines, 14, currentY + 4);
 
     // Signature boxes
-    doc.setDrawColor(15, 23, 42);
-    doc.line(pageW - 70, footerY + 40, pageW - 14, footerY + 40);
+    const sigY = footerStartY + 40; 
+    
+    // Customer Signature
+    if (isQuotation && quotationData?.customerSignature) {
+      try {
+        doc.addImage(quotationData.customerSignature, 'PNG', pageW - 130, sigY - 14, 40, 12);
+        doc.setDrawColor(148, 163, 184); // slate-400
+        doc.setLineWidth(0.3);
+        doc.line(pageW - 130, sigY, pageW - 90, sigY);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(100, 116, 139);
+        doc.text('Customer Acceptance Signature', pageW - 110, sigY + 4, { align: 'center' });
+      } catch (e) {
+        console.warn('Customer signature error:', e);
+      }
+    }
+
+    doc.setDrawColor(15, 23, 42); // Match HTML (Black)
+    doc.setLineWidth(0.5);
+    doc.line(pageW - 70, sigY, pageW - 14, sigY);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Authorized Workshop Signature', pageW - 14, footerY + 44, { align: 'right' });
+    doc.setTextColor(15, 23, 42); // Match HTML (Black)
+    doc.text('Authorized Workshop Signature', pageW - 14, sigY + 4, { align: 'right' });
+
+    // Thank you text at very bottom
+    const thankYouY = Math.max(sigY + 15, currentY + bankLines.length * 3.5 + 10);
+    // @ts-ignore
+    doc.setLineDashPattern([1, 1], 0);
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.line(14, thankYouY, pageW - 14, thankYouY);
+    // @ts-ignore
+    doc.setLineDashPattern([], 0); 
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Thank you for your business!', pageW / 2, thankYouY + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(settings.tagline || '', pageW / 2, thankYouY + 9, { align: 'center' });
 
     // ── Save ─────────────────────────────────────────────────────────────
     doc.save(`${docNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -338,6 +482,7 @@ export const PrintView: React.FC = () => {
   // Shared inline styles for reliable cross-browser PDF rendering
   const styles: Record<string, React.CSSProperties> = {
     page: {
+      position: 'relative',
       backgroundColor: '#ffffff',
       color: '#0f172a',
       fontFamily: "'Helvetica Neue', Arial, sans-serif",
@@ -352,8 +497,10 @@ export const PrintView: React.FC = () => {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
-      borderBottom: '2px solid #0f172a',
-      paddingBottom: '20px',
+      backgroundColor: '#eff6ff',
+      borderBottom: '2px solid #1e3a8a',
+      borderRadius: '8px 8px 0 0',
+      padding: '16px 20px 16px 16px',
       marginBottom: '20px',
     },
     logoArea: { display: 'flex', alignItems: 'center', gap: '12px' },
@@ -362,23 +509,24 @@ export const PrintView: React.FC = () => {
       height: '64px',
       objectFit: 'contain',
       borderRadius: '50%',
-      border: '1px solid #cbd5e1',
+      border: '2px solid #1e3a8a',
+      padding: '2px',
       flexShrink: 0,
     },
     companyName: {
       fontSize: '22px',
       fontWeight: '900',
-      color: '#0f172a',
+      color: '#1e3a8a',
       margin: '0 0 2px 0',
       letterSpacing: '-0.5px',
     },
     tagline: { fontSize: '11px', color: '#64748b', fontStyle: 'italic', margin: '0 0 2px 0' },
-    companyInfo: { fontSize: '11px', color: '#475569', margin: '1px 0' },
+    companyInfo: { fontSize: '11px', color: '#64748b', margin: '1px 0' },
     docTypeBlock: { textAlign: 'right' },
     docType: {
       fontSize: '28px',
       fontWeight: '900',
-      color: '#0f172a',
+      color: '#1e3a8a',
       letterSpacing: '2px',
       margin: '0 0 4px 0',
     },
@@ -390,7 +538,7 @@ export const PrintView: React.FC = () => {
       gap: '20px',
       padding: '14px',
       backgroundColor: '#f8fafc',
-      border: '1px solid #e2e8f0',
+      border: '1.5px solid #1e3a8a',
       borderRadius: '6px',
       marginBottom: '20px',
     },
@@ -412,9 +560,9 @@ export const PrintView: React.FC = () => {
       fontWeight: '700',
       textTransform: 'uppercase',
       letterSpacing: '0.5px',
-      color: '#475569',
-      borderBottom: '2px solid #0f172a',
-      backgroundColor: '#f1f5f9',
+      color: '#1e3a8a',
+      borderBottom: '2px solid #1e3a8a',
+      backgroundColor: '#f8fafc',
     },
     td: { padding: '10px', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #e2e8f0' },
     tdMono: { padding: '10px', fontSize: '12px', color: '#1e293b', borderBottom: '1px solid #e2e8f0', fontFamily: 'monospace', textAlign: 'right' as const },
@@ -425,8 +573,9 @@ export const PrintView: React.FC = () => {
       display: 'flex',
       justifyContent: 'space-between',
       padding: '8px 0',
-      borderTop: '2px solid #0f172a',
-      borderBottom: '2px solid #0f172a',
+      borderTop: '2px solid #cbd5e1',
+      borderBottom: '4px double #1e3a8a',
+      color: '#1e3a8a',
       fontWeight: '900',
       fontSize: '14px',
     },
@@ -503,6 +652,13 @@ export const PrintView: React.FC = () => {
           style={styles.page}
           className="shadow-2xl print:shadow-none print:p-0"
         >
+          {/* Watermark (zIndex: 0 so it sits behind transparent table rows) */}
+          {settings.logoUrl && (
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0.05, pointerEvents: 'none', zIndex: 0 }}>
+              <img src={settings.logoUrl} style={{ width: '400px', height: '400px', objectFit: 'contain' }} crossOrigin="anonymous" />
+            </div>
+          )}
+
           {/* Header */}
           <div style={styles.header}>
             <div style={styles.logoArea}>
@@ -565,16 +721,16 @@ export const PrintView: React.FC = () => {
                 <th style={{ ...styles.th, textAlign: 'center' }}>Unit</th>
                 <th style={{ ...styles.th, textAlign: 'center' }}>Qty</th>
                 {(isQuotation ? visibility.showPrices && visibility.showUnitPrice : true) && (
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Unit Price</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Unit Price ({settings.currency})</th>
                 )}
                 {(isQuotation ? visibility.showPrices && visibility.showTotal : true) && (
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Total ({settings.currency})</th>
                 )}
               </tr>
             </thead>
             <tbody>
               {items?.map((item, idx) => (
-                <tr key={item.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                <tr key={item.id} style={{ backgroundColor: 'transparent' }}>
                   <td style={{ ...styles.td, textAlign: 'center', color: '#94a3b8', fontFamily: 'monospace' }}>{idx + 1}</td>
                   <td style={styles.td}>
                     <strong style={{ display: 'block', color: '#0f172a' }}>{item.name}</strong>
@@ -583,10 +739,10 @@ export const PrintView: React.FC = () => {
                   <td style={{ ...styles.td, textAlign: 'center' }}>{item.unit}</td>
                   <td style={{ ...styles.td, textAlign: 'center', fontFamily: 'monospace', fontWeight: '700' }}>{item.quantity}</td>
                   {(isQuotation ? visibility.showPrices && visibility.showUnitPrice : true) && (
-                    <td style={styles.tdMono}>{settings.currency} {item.unitPrice.toLocaleString()}</td>
+                    <td style={styles.tdMono}>{item.unitPrice.toLocaleString()}</td>
                   )}
                   {(isQuotation ? visibility.showPrices && visibility.showTotal : true) && (
-                    <td style={{ ...styles.tdMono, fontWeight: '800' }}>{settings.currency} {item.total.toLocaleString()}</td>
+                    <td style={{ ...styles.tdMono, fontWeight: '800' }}>{item.total.toLocaleString()}</td>
                   )}
                 </tr>
               ))}
