@@ -250,13 +250,54 @@ Return valid JSON with this exact schema without any markdown formatting or code
   ]
 }`;
 
-  // Try gemini-2.5-flash first, fallback to gemini-1.5-flash
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+  // Discover supported models for this API key, or use fallback candidates
+  const candidateModels: { version: string; model: string }[] = [];
+
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (Array.isArray(listData.models)) {
+        const available = listData.models
+          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        // Prioritize flash models (2.0-flash, 2.5-flash, etc.)
+        const sorted = available.sort((a: string, b: string) => {
+          const aFlash = a.includes('flash') ? 2 : (a.includes('pro') ? 1 : 0);
+          const bFlash = b.includes('flash') ? 2 : (b.includes('pro') ? 1 : 0);
+          return bFlash - aFlash;
+        });
+
+        sorted.forEach((m: string) => {
+          candidateModels.push({ version: 'v1beta', model: m });
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch active models list from Google API:', err);
+  }
+
+  // If dynamic list was empty, add all known active models
+  if (candidateModels.length === 0) {
+    candidateModels.push(
+      { version: 'v1beta', model: 'gemini-2.0-flash' },
+      { version: 'v1beta', model: 'gemini-2.0-flash-exp' },
+      { version: 'v1beta', model: 'gemini-2.0-flash-lite' },
+      { version: 'v1beta', model: 'gemini-2.5-flash' },
+      { version: 'v1', model: 'gemini-2.0-flash' },
+      { version: 'v1beta', model: 'gemini-1.5-flash-latest' },
+      { version: 'v1beta', model: 'gemini-1.5-pro-latest' },
+      { version: 'v1', model: 'gemini-1.5-pro' }
+    );
+  }
+
   let lastError: any = null;
 
-  for (const model of models) {
+  for (let i = 0; i < candidateModels.length; i++) {
+    const { version, model } = candidateModels[i];
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
+      const url = `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${activeKey}`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -286,11 +327,15 @@ Return valid JSON with this exact schema without any markdown formatting or code
 
       if (!response.ok) {
         const errorText = await response.text();
-        // If 404 or model not found, try fallback model
-        if (response.status === 404 && model !== models[models.length - 1]) {
+        // If 404 (model not found / deprecated) or unsupported, try next available model candidate
+        if (
+          (response.status === 404 || errorText.includes('NOT_FOUND') || errorText.includes('not supported') || errorText.includes('deprecated')) &&
+          i < candidateModels.length - 1
+        ) {
+          console.warn(`Gemini model ${model} (${version}) returned ${response.status}. Trying next candidate...`);
           continue;
         }
-        throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
+        throw new Error(`Gemini API Error (${response.status}) on model ${model}: ${errorText}`);
       }
 
       const data = await response.json();
@@ -339,8 +384,10 @@ Return valid JSON with this exact schema without any markdown formatting or code
       };
     } catch (err: any) {
       lastError = err;
-      // If error is not 404, don't try next model unless it's a model not supported error
-      if (err.message && err.message.includes('404')) {
+      if (
+        (err.message && (err.message.includes('404') || err.message.includes('NOT_FOUND') || err.message.includes('not supported'))) &&
+        i < candidateModels.length - 1
+      ) {
         continue;
       }
       break;
