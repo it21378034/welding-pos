@@ -354,12 +354,21 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Top Error Alert */}
           {scanError && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold">Scan Notice</p>
-                <p className="text-[11px] opacity-90">{scanError}</p>
+            <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                <div>
+                  <p className="font-bold">Scan Notice</p>
+                  <p className="text-[11px] opacity-90">{scanError}</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={loadSampleBill}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shrink-0 shadow transition cursor-pointer"
+              >
+                Load Gate Note Items (66,500 LKR)
+              </button>
             </div>
           )}
 

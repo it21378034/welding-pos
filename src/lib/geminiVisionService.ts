@@ -253,21 +253,40 @@ Return valid JSON with this exact schema without any markdown formatting or code
   // Discover supported models for this API key, or use fallback candidates
   const candidateModels: { version: string; model: string }[] = [];
 
+  const nonVisionKeywords = ['tts', 'audio', 'voice', 'speech', 'embedding', 'embed', 'imagen', 'realtime', 'robotics'];
+  const isVisionModel = (name: string) => {
+    const lower = name.toLowerCase();
+    return !nonVisionKeywords.some(kw => lower.includes(kw));
+  };
+
+  const getModelPriority = (m: string) => {
+    const lower = m.toLowerCase();
+    if (lower === 'gemini-2.0-flash' || lower === 'gemini-2.0-flash-001') return 100;
+    if (lower === 'gemini-2.5-flash' || lower === 'gemini-2.5-flash-001') return 95;
+    if (lower.includes('2.0-flash')) return 90;
+    if (lower.includes('2.0-pro')) return 85;
+    if (lower.includes('2.5-pro')) return 80;
+    if (lower.includes('1.5-flash')) return 70;
+    if (lower.includes('1.5-pro')) return 60;
+    if (lower.includes('flash')) return 50;
+    return 10;
+  };
+
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`);
     if (listRes.ok) {
       const listData = await listRes.json();
       if (Array.isArray(listData.models)) {
         const available = listData.models
-          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .filter((m: any) => 
+            Array.isArray(m.supportedGenerationMethods) && 
+            m.supportedGenerationMethods.includes('generateContent') &&
+            isVisionModel(m.name)
+          )
           .map((m: any) => m.name.replace(/^models\//, ''));
 
-        // Prioritize flash models (2.0-flash, 2.5-flash, etc.)
-        const sorted = available.sort((a: string, b: string) => {
-          const aFlash = a.includes('flash') ? 2 : (a.includes('pro') ? 1 : 0);
-          const bFlash = b.includes('flash') ? 2 : (b.includes('pro') ? 1 : 0);
-          return bFlash - aFlash;
-        });
+        // Prioritize proven multimodal vision models
+        const sorted = available.sort((a: string, b: string) => getModelPriority(b) - getModelPriority(a));
 
         sorted.forEach((m: string) => {
           candidateModels.push({ version: 'v1beta', model: m });
@@ -278,7 +297,7 @@ Return valid JSON with this exact schema without any markdown formatting or code
     console.warn('Could not fetch active models list from Google API:', err);
   }
 
-  // If dynamic list was empty, add all known active models
+  // If dynamic list was empty or missing vision models, add verified defaults
   if (candidateModels.length === 0) {
     candidateModels.push(
       { version: 'v1beta', model: 'gemini-2.0-flash' },
@@ -327,12 +346,10 @@ Return valid JSON with this exact schema without any markdown formatting or code
 
       if (!response.ok) {
         const errorText = await response.text();
-        // If 404 (model not found / deprecated) or unsupported, try next available model candidate
-        if (
-          (response.status === 404 || errorText.includes('NOT_FOUND') || errorText.includes('not supported') || errorText.includes('deprecated')) &&
-          i < candidateModels.length - 1
-        ) {
-          console.warn(`Gemini model ${model} (${version}) returned ${response.status}. Trying next candidate...`);
+        // If 400 (modality not supported), 404 (not found), 429 (rate limited), or 503 (unavailable)
+        // continue trying remaining candidates
+        if (i < candidateModels.length - 1) {
+          console.warn(`Model ${model} (${version}) returned HTTP ${response.status}: ${errorText.slice(0, 120)}... Trying next candidate model.`);
           continue;
         }
         throw new Error(`Gemini API Error (${response.status}) on model ${model}: ${errorText}`);
@@ -342,6 +359,9 @@ Return valid JSON with this exact schema without any markdown formatting or code
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!rawText) {
+        if (i < candidateModels.length - 1) {
+          continue;
+        }
         throw new Error('No response text received from Gemini Vision model');
       }
 
@@ -384,10 +404,8 @@ Return valid JSON with this exact schema without any markdown formatting or code
       };
     } catch (err: any) {
       lastError = err;
-      if (
-        (err.message && (err.message.includes('404') || err.message.includes('NOT_FOUND') || err.message.includes('not supported'))) &&
-        i < candidateModels.length - 1
-      ) {
+      if (i < candidateModels.length - 1) {
+        console.warn(`Attempt with ${model} failed, trying next candidate:`, err.message);
         continue;
       }
       break;
