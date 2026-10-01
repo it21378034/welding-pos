@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Settings as SettingsIcon, Save, Download, Upload, Building, ShieldCheck, Printer } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Download, Upload, Building, ShieldCheck, Printer, Sparkles, ExternalLink } from 'lucide-react';
+import { saveGeminiApiKey } from '../lib/geminiVisionService';
 
 export const SettingsModule: React.FC = () => {
   const { settings, updateSettings, exportDatabase, importDatabase, t } = useApp();
@@ -9,6 +10,9 @@ export const SettingsModule: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.geminiApiKey !== undefined) {
+      saveGeminiApiKey(formData.geminiApiKey);
+    }
     updateSettings(formData);
     alert('Settings saved successfully!');
   };
@@ -222,6 +226,44 @@ export const SettingsModule: React.FC = () => {
               onChange={e => setFormData({ ...formData, bankDetails: e.target.value })}
               className="w-full px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-xs focus:outline-none focus:border-amber-500"
             />
+          </div>
+        </div>
+
+        {/* AI Vision & Note Scanner Settings */}
+        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+          <h3 className="font-extrabold text-slate-100 text-base border-b border-slate-800 pb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            AI Vision Note & Bill Scanner (Google Gemini)
+          </h3>
+          <p className="text-xs text-slate-400">
+            Allows you to upload or photograph handwritten workshop material lists, hardware store bills, and notebooks to automatically generate itemized Quotations.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+              Google Gemini API Key
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                value={formData.geminiApiKey || ''}
+                onChange={e => setFormData({ ...formData, geminiApiKey: e.target.value })}
+                placeholder="AIzaSy... (Paste your Google AI Studio key)"
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-sm font-mono focus:outline-none focus:border-amber-500"
+              />
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition shrink-0"
+              >
+                <span>Get Free Key</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              Google AI Studio gives you a generous free tier for vision OCR. No credit card required.
+            </p>
           </div>
         </div>
 

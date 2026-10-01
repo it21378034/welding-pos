@@ -126,6 +126,7 @@ export interface CompanySettings {
   defaultInvoiceTerms: string;
   thermalPrinterWidth: '58mm' | '80mm';
   bankDetails: string;
+  geminiApiKey?: string;
 }
 
 export interface PurchaseItem {

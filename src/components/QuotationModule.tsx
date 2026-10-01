@@ -14,8 +14,10 @@ import {
   X, 
   Edit3, 
   Search,
-  PenTool
+  PenTool,
+  Sparkles
 } from 'lucide-react';
+import { ScanQuotationModal } from './ScanQuotationModal';
 
 export const QuotationModule: React.FC = () => {
   const { 
@@ -34,6 +36,7 @@ export const QuotationModule: React.FC = () => {
 
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   // Form State for Create/Edit
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -262,13 +265,22 @@ export const QuotationModule: React.FC = () => {
         </div>
 
         {activeView === 'list' ? (
-          <button
-            onClick={openNewQuotationEditor}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('createQuotation')}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsScanModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-500/30 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 border border-amber-500/40 font-bold text-sm shadow-lg shadow-amber-500/10 transition active:scale-95 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>AI Scan Note / Bill</span>
+            </button>
+            <button
+              onClick={openNewQuotationEditor}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('createQuotation')}</span>
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => setActiveView('list')}
@@ -562,8 +574,16 @@ export const QuotationModule: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setIsScanModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/25 hover:from-amber-500/30 hover:to-amber-600/35 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>AI Scan Note</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleAddItem()}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" /> Custom Item
                 </button>
@@ -799,6 +819,15 @@ export const QuotationModule: React.FC = () => {
           </div>
         </form>
       )}
+
+      {/* AI Vision Note & Bill Scanner Modal */}
+      <ScanQuotationModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onQuotationCreated={(newQuotation) => {
+          openEditQuotationEditor(newQuotation);
+        }}
+      />
     </div>
   );
 };
