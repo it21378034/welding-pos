@@ -261,14 +261,17 @@ Return valid JSON with this exact schema without any markdown formatting or code
 
   const getModelPriority = (m: string) => {
     const lower = m.toLowerCase();
-    if (lower === 'gemini-2.0-flash' || lower === 'gemini-2.0-flash-001') return 100;
-    if (lower === 'gemini-2.5-flash' || lower === 'gemini-2.5-flash-001') return 95;
-    if (lower.includes('2.0-flash')) return 90;
-    if (lower.includes('2.0-pro')) return 85;
-    if (lower.includes('2.5-pro')) return 80;
-    if (lower.includes('1.5-flash')) return 70;
-    if (lower.includes('1.5-pro')) return 60;
-    if (lower.includes('flash')) return 50;
+    if (lower === 'gemini-3.5-flash' || lower.startsWith('gemini-3.5-flash-')) return 100;
+    if (lower === 'gemini-3.5-flash-lite' || lower.startsWith('gemini-3.5-flash-lite')) return 95;
+    if (lower === 'gemini-3.8-flash') return 90;
+    if (lower === 'gemini-3.7-flash') return 88;
+    if (lower === 'gemini-3.6-flash') return 86;
+    if (lower === 'gemini-3.1-flash-lite') return 84;
+    if (lower === 'gemini-flash-latest') return 82;
+    if (lower === 'gemini-2.0-flash' || lower === 'gemini-2.0-flash-001') return 80;
+    if (lower === 'gemini-2.5-pro') return 75;
+    if (lower.includes('flash')) return 60;
+    if (lower.includes('pro')) return 50;
     return 10;
   };
 
@@ -285,7 +288,7 @@ Return valid JSON with this exact schema without any markdown formatting or code
           )
           .map((m: any) => m.name.replace(/^models\//, ''));
 
-        // Prioritize proven multimodal vision models
+        // Prioritize verified active multimodal vision models
         const sorted = available.sort((a: string, b: string) => getModelPriority(b) - getModelPriority(a));
 
         sorted.forEach((m: string) => {
@@ -300,14 +303,14 @@ Return valid JSON with this exact schema without any markdown formatting or code
   // If dynamic list was empty or missing vision models, add verified defaults
   if (candidateModels.length === 0) {
     candidateModels.push(
+      { version: 'v1beta', model: 'gemini-3.5-flash' },
+      { version: 'v1beta', model: 'gemini-3.5-flash-lite' },
+      { version: 'v1beta', model: 'gemini-3.8-flash' },
+      { version: 'v1beta', model: 'gemini-3.7-flash' },
+      { version: 'v1beta', model: 'gemini-3.6-flash' },
+      { version: 'v1beta', model: 'gemini-flash-latest' },
       { version: 'v1beta', model: 'gemini-2.0-flash' },
-      { version: 'v1beta', model: 'gemini-2.0-flash-exp' },
-      { version: 'v1beta', model: 'gemini-2.0-flash-lite' },
-      { version: 'v1beta', model: 'gemini-2.5-flash' },
-      { version: 'v1', model: 'gemini-2.0-flash' },
-      { version: 'v1beta', model: 'gemini-1.5-flash-latest' },
-      { version: 'v1beta', model: 'gemini-1.5-pro-latest' },
-      { version: 'v1', model: 'gemini-1.5-pro' }
+      { version: 'v1', model: 'gemini-2.0-flash' }
     );
   }
 
