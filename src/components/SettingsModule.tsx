@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from './Toast';
 import { useApp } from '../context/AppContext';
 import { 
   Settings as SettingsIcon, 
@@ -23,6 +24,7 @@ import { saveGeminiApiKey } from '../lib/geminiVisionService';
 import type { Role } from '../types';
 
 export const SettingsModule: React.FC = () => {
+  const { showToast, showConfirm } = useToast();
   const { 
     settings, 
     updateSettings, 
@@ -55,7 +57,7 @@ export const SettingsModule: React.FC = () => {
       saveGeminiApiKey(formData.geminiApiKey);
     }
     updateSettings(formData);
-    alert('Settings saved successfully!');
+    showToast('Settings saved successfully!', 'success');
   };
 
   const handleCreateUser = (e: React.FormEvent) => {
@@ -79,14 +81,20 @@ export const SettingsModule: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = (id: string, email: string) => {
-    if (confirm(`Are you sure you want to revoke access for ${email}?`)) {
+  const handleDeleteUser = async (id: string, email: string) => {
+    const confirmed = await showConfirm({
+      title: 'Revoke User Access',
+      message: `Are you sure you want to revoke access for ${email}?`,
+      confirmLabel: 'Revoke Access',
+      danger: true,
+    });
+    if (confirmed) {
       setUserMsg(null);
       const res = deleteUser(id);
       if (res.success) {
-        setUserMsg({ text: `Access revoked for ${email}.`, isError: false });
+        showToast(`Access revoked for ${email}.`, 'success');
       } else {
-        setUserMsg({ text: res.error || 'Failed to revoke access.', isError: true });
+        showToast(res.error || 'Failed to revoke access.', 'error');
       }
     }
   };

@@ -4,6 +4,7 @@ import {
   Package, User, Calendar, ClipboardList, Edit3, Save, Copy
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 import type { PurchaseList, PurchaseItem } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -525,6 +526,7 @@ const emptyItem = (): PurchaseItem => ({
 // ─── Main Module ─────────────────────────────────────────────────────────────
 export const PurchaseListModule: React.FC = () => {
   const { customers, purchaseLists, addPurchaseList, updatePurchaseList, deletePurchaseList, duplicatePurchaseList } = useApp();
+  const { showToast, showConfirm } = useToast();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -574,7 +576,7 @@ export const PurchaseListModule: React.FC = () => {
 
   const handleSave = () => {
     if (items.filter(i => i.name.trim()).length === 0) {
-      alert('Please add at least one item.');
+      showToast('Please add at least one item.', 'warning');
       return;
     }
 
@@ -602,9 +604,16 @@ export const PurchaseListModule: React.FC = () => {
     resetForm();
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Delete this purchase list?')) {
+  const handleDelete = async (id: string) => {
+    const confirmed = await showConfirm({
+      title: 'Delete Purchase List',
+      message: 'Are you sure you want to delete this purchase list?',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       deletePurchaseList(id);
+      showToast('Purchase list deleted.', 'success');
     }
   };
 

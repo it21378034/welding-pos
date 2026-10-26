@@ -11,7 +11,8 @@ import { SettingsModule } from './components/SettingsModule';
 import { PrintView } from './components/PrintView';
 import { PurchaseListModule } from './components/PurchaseListModule';
 import { LoginScreen } from './components/LoginScreen';
-import { Loader2, CloudOff, X } from 'lucide-react';
+import { ToastProvider } from './components/Toast';
+import { Loader2 } from 'lucide-react';
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
@@ -25,27 +26,6 @@ const LoadingScreen: React.FC = () => (
     </div>
   </div>
 );
-
-const SyncErrorToast: React.FC = () => {
-  const { syncError, clearSyncError } = useApp();
-
-  if (!syncError) return null;
-
-  return (
-    <div className="fixed bottom-4 right-4 z-[100] animate-slide-up">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/15 border border-amber-500/30 backdrop-blur-xl shadow-2xl shadow-amber-500/10 max-w-sm">
-        <CloudOff className="w-4 h-4 text-amber-400 shrink-0" />
-        <p className="text-xs text-amber-200 font-medium flex-1">{syncError}</p>
-        <button
-          onClick={clearSyncError}
-          className="p-1 rounded-lg hover:bg-amber-500/20 text-amber-400 transition shrink-0"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-};
 
 const MainLayout: React.FC = () => {
   const { activeTab, theme, isLoading, currentUser } = useApp();
@@ -78,7 +58,6 @@ const MainLayout: React.FC = () => {
       </div>
 
       <PrintView />
-      <SyncErrorToast />
     </div>
   );
 };
@@ -86,7 +65,9 @@ const MainLayout: React.FC = () => {
 export function App() {
   return (
     <AppProvider>
-      <MainLayout />
+      <ToastProvider>
+        <MainLayout />
+      </ToastProvider>
     </AppProvider>
   );
 }

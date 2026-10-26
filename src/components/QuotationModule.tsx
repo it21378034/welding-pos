@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { ScanQuotationModal } from './ScanQuotationModal';
+import { useToast } from './Toast';
 
 export const QuotationModule: React.FC = () => {
   const { 
@@ -33,6 +34,7 @@ export const QuotationModule: React.FC = () => {
     setActivePrintDocument, 
     t 
   } = useApp();
+  const { showToast, showConfirm } = useToast();
 
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
@@ -207,7 +209,7 @@ export const QuotationModule: React.FC = () => {
     e.preventDefault();
     const cust = customers.find(c => c.id === selectedCustomerId);
     if (!cust) {
-      alert('Please select a valid customer!');
+      showToast('Please select a valid customer!', 'warning');
       return;
     }
 
@@ -386,8 +388,14 @@ export const QuotationModule: React.FC = () => {
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(t('confirmDelete'))) deleteQuotation(q.id);
+                          onClick={async () => {
+                            const confirmed = await showConfirm({
+                              title: 'Delete Quotation',
+                              message: t('confirmDelete'),
+                              confirmLabel: 'Delete',
+                              danger: true,
+                            });
+                            if (confirmed) deleteQuotation(q.id);
                           }}
                           className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
                         >

@@ -16,9 +16,11 @@ import {
   LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 
 export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
   const { activeTab, setActiveTab, t, settings, isOnline, syncError, currentUser, logout } = useApp();
+  const { showConfirm } = useToast();
 
   const navItems = [
     { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
@@ -118,8 +120,14 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
               </span>
             </div>
             <button
-              onClick={() => {
-                if (confirm('Are you sure you want to log out?')) {
+              onClick={async () => {
+                const confirmed = await showConfirm({
+                  title: 'Log Out',
+                  message: 'Are you sure you want to log out of the system?',
+                  confirmLabel: 'Log Out',
+                  danger: true,
+                });
+                if (confirmed) {
                   logout();
                 }
               }}
@@ -166,6 +174,7 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
 
 export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobileMenu }) => {
   const { theme, toggleTheme, language, setLanguage, role, setRole, settings, currentUser, logout } = useApp();
+  const { showConfirm } = useToast();
 
   return (
     <header className="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between text-slate-200 shrink-0 print:hidden">
@@ -251,8 +260,14 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
         {/* Logout Button */}
         {currentUser && (
           <button
-            onClick={() => {
-              if (confirm('Are you sure you want to log out?')) {
+            onClick={async () => {
+              const confirmed = await showConfirm({
+                title: 'Log Out',
+                message: 'Are you sure you want to log out of the system?',
+                confirmLabel: 'Log Out',
+                danger: true,
+              });
+              if (confirmed) {
                 logout();
               }
             }}

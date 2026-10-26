@@ -27,6 +27,7 @@ import {
   type ScannedMaterialItem 
 } from '../lib/geminiVisionService';
 import { getDistinctDescription, normalizeItemText } from '../lib/itemUtils';
+import { useToast } from './Toast';
 
 interface ScanQuotationModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
   onQuotationCreated,
 }) => {
   const { customers, addQuotation, settings, updateSettings } = useApp();
+  const { showToast } = useToast();
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -219,7 +221,7 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
 
   const handleCreateQuotation = () => {
     if (items.length === 0) {
-      alert('Please add at least one item.');
+      showToast('Please add at least one item.', 'warning');
       return;
     }
 
