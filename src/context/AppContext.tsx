@@ -612,7 +612,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quotations,
       invoices,
       exportDate: new Date().toISOString(),
-      version: '2.0',
+      version: '2.1',
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
