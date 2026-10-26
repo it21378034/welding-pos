@@ -12,12 +12,13 @@ import {
   Sun,
   Menu,
   X,
-  ShoppingCart
+  ShoppingCart,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, t, settings, isOnline, syncError } = useApp();
+  const { activeTab, setActiveTab, t, settings, isOnline, syncError, currentUser, logout } = useApp();
 
   const navItems = [
     { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
@@ -97,9 +98,42 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
           </nav>
         </div>
 
+        {/* Current User Card in Sidebar */}
+        {currentUser && (
+          <div className="p-3.5 border-t border-slate-800 bg-slate-900/60">
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-bold text-xs shrink-0 shadow-inner">
+                  {currentUser.name ? currentUser.name[0].toUpperCase() : 'U'}
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-xs font-bold text-slate-200 truncate">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{currentUser.email}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase shrink-0 ${
+                currentUser.role === 'admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+              }`}>
+                {currentUser.role}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to log out?')) {
+                  logout();
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/40 text-xs font-semibold transition"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Log Out</span>
+            </button>
+          </div>
+        )}
+
         {/* Cloud Sync Status */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/30">
-          <div className={`p-3 rounded-lg border flex items-center gap-3 ${
+        <div className="p-3.5 border-t border-slate-800 bg-slate-950/40">
+          <div className={`p-2.5 rounded-lg border flex items-center gap-2.5 ${
             syncError
               ? 'bg-amber-500/10 border-amber-500/30'
               : isOnline
@@ -119,7 +153,7 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
               }`}>
                 {syncError ? 'Sync Warning' : isOnline ? 'Cloud Connected' : 'Offline Mode'}
               </p>
-              <p className="text-[11px] text-slate-400 truncate">
+              <p className="text-[10px] text-slate-400 truncate">
                 {syncError || (isOnline ? 'Supabase Synced' : 'Using local cache')}
               </p>
             </div>
@@ -131,7 +165,7 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
 };
 
 export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobileMenu }) => {
-  const { theme, toggleTheme, language, setLanguage, role, setRole, settings } = useApp();
+  const { theme, toggleTheme, language, setLanguage, role, setRole, settings, currentUser, logout } = useApp();
 
   return (
     <header className="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between text-slate-200 shrink-0 print:hidden">
@@ -161,6 +195,19 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        {/* Logged in User Chip */}
+        {currentUser && (
+          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs">
+            <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center font-bold text-[11px] shrink-0">
+              {currentUser.name ? currentUser.name[0].toUpperCase() : 'U'}
+            </div>
+            <div className="max-w-[140px] truncate text-left">
+              <span className="block font-bold text-slate-200 text-[11px] truncate leading-tight">{currentUser.name}</span>
+              <span className="block text-[9px] text-slate-400 font-extrabold uppercase">{currentUser.role}</span>
+            </div>
+          </div>
+        )}
+
         {/* Role Switcher */}
         <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700/60 text-xs">
           <button
@@ -200,6 +247,22 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
         >
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4 text-slate-200" />}
         </button>
+
+        {/* Logout Button */}
+        {currentUser && (
+          <button
+            onClick={() => {
+              if (confirm('Are you sure you want to log out?')) {
+                logout();
+              }
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/40 text-xs font-bold transition group"
+            title="Log Out of System"
+          >
+            <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-400 transition" />
+            <span className="hidden sm:inline">Log Out</span>
+          </button>
+        )}
       </div>
     </header>
   );

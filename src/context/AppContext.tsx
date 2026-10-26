@@ -1,12 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, Role, Language, PurchaseList } from '../types';
+import type { Customer, CatalogItem, Quotation, Invoice, CompanySettings, Role, Language, PurchaseList, User } from '../types';
 import { initialSettings, initialCustomers, initialCatalogItems, initialQuotations, initialInvoices } from '../data/initialData';
 import { translations } from '../locales/i18n';
 import * as db from '../lib/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { getDistinctDescription } from '../lib/itemUtils';
+import {
+  getRegisteredUsers,
+  getStoredSession,
+  setStoredSession,
+  clearStoredSession,
+  authenticateUser,
+  registerNewUser,
+  deleteRegisteredUser,
+  updateRegisteredUser,
+} from '../lib/authService';
 
 interface AppContextType {
+  // Authentication & Users
+  currentUser: User | null;
+  users: User[];
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
+  addUser: (userData: { email: string; name: string; password?: string; role: Role }) => { success: boolean; error?: string };
+  updateUser: (id: string, updates: Partial<Pick<User, 'name' | 'password' | 'role'>>) => { success: boolean; error?: string };
+  deleteUser: (id: string) => { success: boolean; error?: string };
+
   // Navigation & Theme
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -70,10 +89,68 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = 'welding_pos_data_v1';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => getStoredSession());
+  const [users, setUsers] = useState<User[]>(() => getRegisteredUsers());
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [language, setLanguage] = useState<Language>('en');
-  const [role, setRole] = useState<Role>('admin');
+  const [role, setRole] = useState<Role>(() => (getStoredSession()?.role || 'admin'));
+
+  // Sync role with currentUser
+  useEffect(() => {
+    if (currentUser?.role) {
+      setRole(currentUser.role);
+    }
+  }, [currentUser]);
+
+  const login = async (email: string, password: string) => {
+    const res = authenticateUser(email, password);
+    if (res.success && res.user) {
+      setCurrentUser(res.user);
+      setRole(res.user.role);
+      setStoredSession(res.user);
+      return { success: true };
+    }
+    return { success: false, error: res.error };
+  };
+
+  const logout = () => {
+    clearStoredSession();
+    setCurrentUser(null);
+  };
+
+  const addUser = (userData: { email: string; name: string; password?: string; role: Role }) => {
+    const res = registerNewUser(currentUser, userData);
+    if (res.success) {
+      setUsers(getRegisteredUsers());
+    }
+    return res;
+  };
+
+  const updateUser = (id: string, updates: Partial<Pick<User, 'name' | 'password' | 'role'>>) => {
+    const res = updateRegisteredUser(currentUser, id, updates);
+    if (res.success) {
+      setUsers(getRegisteredUsers());
+      if (currentUser?.id === id) {
+        const updated = getRegisteredUsers().find(u => u.id === id);
+        if (updated) {
+          const { password: _, ...safeUser } = updated;
+          setCurrentUser(safeUser as User);
+          setStoredSession(safeUser as User);
+        }
+      }
+    }
+    return res;
+  };
+
+  const deleteUser = (id: string) => {
+    const res = deleteRegisteredUser(currentUser, id);
+    if (res.success) {
+      setUsers(getRegisteredUsers());
+    }
+    return res;
+  };
 
   const [settings, setSettings] = useState<CompanySettings>(initialSettings);
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
@@ -587,6 +664,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        currentUser,
+        users,
+        login,
+        logout,
+        addUser,
+        updateUser,
+        deleteUser,
+
         activeTab,
         setActiveTab,
         theme,

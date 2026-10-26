@@ -10,6 +10,7 @@ import { ReportsModule } from './components/ReportsModule';
 import { SettingsModule } from './components/SettingsModule';
 import { PrintView } from './components/PrintView';
 import { PurchaseListModule } from './components/PurchaseListModule';
+import { LoginScreen } from './components/LoginScreen';
 import { Loader2, CloudOff, X } from 'lucide-react';
 
 const LoadingScreen: React.FC = () => (
@@ -47,10 +48,15 @@ const SyncErrorToast: React.FC = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { activeTab, theme, isLoading } = useApp();
+  const { activeTab, theme, isLoading, currentUser } = useApp();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   if (isLoading) return <LoadingScreen />;
+
+  // Require authentication to access the system
+  if (!currentUser) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className={`min-h-screen flex flex-col font-sans ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} antialiased selection:bg-amber-500 selection:text-slate-950`}>
