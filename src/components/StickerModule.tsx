@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { 
   QrCode, 
   Printer, 
@@ -82,7 +81,6 @@ export const StickerModule: React.FC = () => {
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [selectedDocId, setSelectedDocId] = useState<string>('');
 
-  const singleStickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Cache logo as Base64 data URL so html2canvas never suffers CORS or tainted canvas errors
@@ -234,30 +232,344 @@ export const StickerModule: React.FC = () => {
     }
   };
 
-  // Helper to render high-res canvas from the sticker DOM element
+  // Helper to load image asynchronously for canvas drawing
+  const loadCanvasImage = (src: string): Promise<HTMLImageElement | null> =>
+    new Promise((resolve) => {
+      if (!src) return resolve(null);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+
+  // Helper to draw rounded rectangle on canvas
+  const drawCanvasRoundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number
+  ) => {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, r);
+    } else {
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+  };
+
+  // Get hex color tokens for direct 2D canvas rendering (100% immune to oklch parser bugs)
+  const getCanvasPalette = (t: StickerTheme) => {
+    switch (t) {
+      case 'brushed-steel':
+        return {
+          bgFrom: '#f1f5f9',
+          bgTo: '#cbd5e1',
+          borderColor: '#475569',
+          borderWidth: 4,
+          badgeBg: '#1e293b',
+          badgeText: '#f8fafc',
+          titleColor: '#0f172a',
+          subColor: '#475569',
+          dividerColor: 'rgba(71, 85, 105, 0.45)',
+          phoneColor: '#0f172a',
+          phoneAccent: '#1d4ed8',
+          webColor: '#1d4ed8',
+          contactColor: '#334155',
+          qrBoxBorder: '#64748b',
+          qrLabelColor: '#0f172a',
+          hazard: false,
+        };
+      case 'monochrome-clean':
+        return {
+          bgFrom: '#ffffff',
+          bgTo: '#ffffff',
+          borderColor: '#000000',
+          borderWidth: 5,
+          badgeBg: '#000000',
+          badgeText: '#ffffff',
+          titleColor: '#000000',
+          subColor: '#334155',
+          dividerColor: 'rgba(0, 0, 0, 0.4)',
+          phoneColor: '#000000',
+          phoneAccent: '#000000',
+          webColor: '#000000',
+          contactColor: '#000000',
+          qrBoxBorder: '#000000',
+          qrLabelColor: '#000000',
+          hazard: false,
+        };
+      case 'royal-navy':
+        return {
+          bgFrom: '#061226',
+          bgTo: '#0c224a',
+          borderColor: '#f59e0b',
+          borderWidth: 4,
+          badgeBg: '#f59e0b',
+          badgeText: '#061226',
+          titleColor: '#ffffff',
+          subColor: '#93c5fd',
+          dividerColor: 'rgba(245, 158, 11, 0.4)',
+          phoneColor: '#ffffff',
+          phoneAccent: '#f59e0b',
+          webColor: '#f59e0b',
+          contactColor: '#e2e8f0',
+          qrBoxBorder: '#f59e0b',
+          qrLabelColor: '#fde047',
+          hazard: false,
+        };
+      case 'hazard-caution':
+        return {
+          bgFrom: '#18181b',
+          bgTo: '#09090b',
+          borderColor: '#eab308',
+          borderWidth: 4,
+          badgeBg: '#eab308',
+          badgeText: '#000000',
+          titleColor: '#ffffff',
+          subColor: '#d4d4d8',
+          dividerColor: 'rgba(234, 179, 8, 0.45)',
+          phoneColor: '#ffffff',
+          phoneAccent: '#eab308',
+          webColor: '#eab308',
+          contactColor: '#f4f4f5',
+          qrBoxBorder: '#eab308',
+          qrLabelColor: '#eab308',
+          hazard: true,
+        };
+      case 'industrial-dark':
+      default:
+        return {
+          bgFrom: '#090e17',
+          bgTo: '#020617',
+          borderColor: '#f59e0b',
+          borderWidth: 4,
+          badgeBg: '#f59e0b',
+          badgeText: '#020617',
+          titleColor: '#ffffff',
+          subColor: '#94a3b8',
+          dividerColor: 'rgba(245, 158, 11, 0.4)',
+          phoneColor: '#ffffff',
+          phoneAccent: '#f59e0b',
+          webColor: '#f59e0b',
+          contactColor: '#cbd5e1',
+          qrBoxBorder: '#f59e0b',
+          qrLabelColor: '#f59e0b',
+          hazard: false,
+        };
+    }
+  };
+
+  // Direct native 2D Canvas rendering — crystal sharp 300 DPI, zero html2canvas or oklch errors
   const generateStickerCanvas = async (): Promise<HTMLCanvasElement | null> => {
-    // 1. Try dedicated permanent export ref
-    let target = singleStickerRef.current;
-    // 2. Try ID lookup
-    if (!target) {
-      target = document.getElementById('permanent-sticker-export-node') as HTMLDivElement;
-    }
-    // 3. Fallback to any mounted sticker container in the DOM
-    if (!target) {
-      target = document.querySelector('.sticker-render-root') as HTMLDivElement;
-    }
-    if (!target) {
-      console.error('Sticker DOM node not found anywhere in document');
-      return null;
+    const canvas = document.createElement('canvas');
+    const width = 1772; // exact 150mm at 300 DPI
+    const height = 354; // exact 30mm at 300 DPI
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const [logoImg, qrImg] = await Promise.all([
+      stickerData.showLogo && (logoBase64 || stickerData.logoUrl)
+        ? loadCanvasImage(logoBase64 || stickerData.logoUrl)
+        : Promise.resolve(null),
+      qrCodeDataUrl ? loadCanvasImage(qrCodeDataUrl) : Promise.resolve(null),
+    ]);
+
+    const cp = getCanvasPalette(theme);
+
+    // 1. Draw rounded outer background
+    drawCanvasRoundedRect(ctx, 4, 4, width - 8, height - 8, 16);
+    const grad = ctx.createLinearGradient(0, 0, width, height);
+    grad.addColorStop(0, cp.bgFrom);
+    grad.addColorStop(1, cp.bgTo);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.strokeStyle = cp.borderColor;
+    ctx.lineWidth = cp.borderWidth;
+    ctx.stroke();
+
+    // Hazard stripes if active
+    if (cp.hazard) {
+      ctx.save();
+      ctx.clip();
+      for (let x = -50; x < width + 50; x += 36) {
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + 18, 0);
+        ctx.lineTo(x + 36, 14);
+        ctx.lineTo(x + 18, 14);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(x, height - 14);
+        ctx.lineTo(x + 18, height - 14);
+        ctx.lineTo(x + 36, height);
+        ctx.lineTo(x + 18, height);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
-    return await html2canvas(target, {
-      scale: 3, // 150mm * 3 = 1700px, 30mm * 3 = 340px (High-res 300 DPI)
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: null,
-      logging: false,
-    });
+    // 2. SECTION 1: Brand & Logo (Left ~570px)
+    let textStartX = 40;
+    if (logoImg) {
+      const logoX = 35;
+      const logoY = 67;
+      const logoSize = 220;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 4, 0, Math.PI * 2);
+      ctx.fillStyle = theme === 'monochrome-clean' ? '#f1f5f9' : 'rgba(2, 6, 23, 0.7)';
+      ctx.fill();
+      ctx.strokeStyle = cp.dividerColor;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.clip();
+      ctx.drawImage(logoImg, logoX + 10, logoY + 10, logoSize - 20, logoSize - 20);
+      ctx.restore();
+
+      textStartX = 280;
+    }
+
+    // Badge
+    if (stickerData.badgeText) {
+      ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+      const badgeW = Math.min(270, ctx.measureText(stickerData.badgeText.toUpperCase()).width + 18);
+      drawCanvasRoundedRect(ctx, textStartX, 62, badgeW, 26, 6);
+      ctx.fillStyle = cp.badgeBg;
+      ctx.fill();
+
+      ctx.fillStyle = cp.badgeText;
+      ctx.fillText(stickerData.badgeText.toUpperCase(), textStartX + 9, 80);
+    }
+
+    // Company Name
+    ctx.fillStyle = cp.titleColor;
+    ctx.font = '900 27px system-ui, -apple-system, sans-serif';
+    const words = stickerData.brandName.toUpperCase().split(' ');
+    if (words.length > 2 && ctx.measureText(stickerData.brandName.toUpperCase()).width > 280) {
+      const mid = Math.ceil(words.length / 2);
+      const line1 = words.slice(0, mid).join(' ');
+      const line2 = words.slice(mid).join(' ');
+      ctx.fillText(line1, textStartX, 122);
+      ctx.fillText(line2, textStartX, 154);
+    } else {
+      ctx.fillText(stickerData.brandName.toUpperCase(), textStartX, 130);
+    }
+
+    // Tagline
+    if (stickerData.tagline) {
+      ctx.fillStyle = cp.subColor;
+      ctx.font = '500 16px system-ui, -apple-system, sans-serif';
+      ctx.fillText(stickerData.tagline, textStartX, 192, 280);
+    }
+
+    // Divider 1
+    ctx.beginPath();
+    ctx.moveTo(580, 30);
+    ctx.lineTo(580, 324);
+    ctx.strokeStyle = cp.dividerColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // 3. SECTION 2: Contact Information (Center 605 - 1430px)
+    const contactStartX = 605;
+
+    // Row 1: Hotlines
+    ctx.font = '800 25px monospace, system-ui';
+    ctx.fillStyle = cp.phoneAccent;
+    ctx.fillText('📞', contactStartX, 80);
+    ctx.fillStyle = cp.phoneColor;
+    const phoneText = `${stickerData.phone1}${stickerData.phone2 ? `   |   ${stickerData.phone2}` : ''}`;
+    ctx.fillText(phoneText, contactStartX + 35, 80);
+
+    // Row 2: Website & Email
+    ctx.font = '700 20px system-ui, -apple-system, sans-serif';
+    let curX = contactStartX;
+    if (stickerData.websiteUrl) {
+      ctx.fillStyle = cp.webColor;
+      const webDisplay = '🌐 ' + stickerData.websiteUrl.replace(/^https?:\/\//, '');
+      ctx.fillText(webDisplay, curX, 140);
+      curX += ctx.measureText(webDisplay).width + 30;
+    }
+    if (stickerData.email) {
+      ctx.fillStyle = cp.contactColor;
+      ctx.fillText('✉ ' + stickerData.email, curX, 140);
+    }
+
+    // Row 3: Address
+    ctx.font = '500 19px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = cp.contactColor;
+    ctx.fillText('📍 ' + stickerData.address, contactStartX, 200, 790);
+
+    // Row 4: Warranty or Job Tag
+    if (stickerData.showWarranty || stickerData.jobTag) {
+      const badgeStr = `🛡 ${stickerData.jobTag ? `${stickerData.jobTag}  •  ` : ''}${stickerData.warrantyText}`;
+      ctx.font = '700 16px system-ui, -apple-system, sans-serif';
+      const tagW = Math.min(800, ctx.measureText(badgeStr).width + 24);
+      drawCanvasRoundedRect(ctx, contactStartX, 240, tagW, 32, 6);
+      ctx.fillStyle = cp.dividerColor;
+      ctx.fill();
+      ctx.strokeStyle = cp.borderColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = cp.phoneAccent;
+      ctx.fillText(badgeStr, contactStartX + 12, 262);
+    }
+
+    // Divider 2
+    ctx.beginPath();
+    ctx.moveTo(1440, 30);
+    ctx.lineTo(1440, 324);
+    ctx.strokeStyle = cp.dividerColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // 4. SECTION 3: QR Code & Call to Action (Right ~1450 to 1772px)
+    const qrBoxX = 1495;
+    const qrBoxY = 40;
+    const qrBoxSize = 226;
+
+    // White quiet-zone container
+    drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 14);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = cp.qrBoxBorder;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // QR Code Image
+    if (qrImg) {
+      ctx.drawImage(qrImg, qrBoxX + 10, qrBoxY + 10, qrBoxSize - 20, qrBoxSize - 20);
+    }
+
+    // Scan Prompt text
+    ctx.font = '900 17px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = cp.qrLabelColor;
+    ctx.textAlign = 'center';
+    ctx.fillText((stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(), qrBoxX + qrBoxSize / 2, 300);
+    ctx.textAlign = 'left';
+
+    return canvas;
   };
 
   // Download Single 15cm x 3cm PDF
@@ -658,26 +970,6 @@ export const StickerModule: React.FC = () => {
             {renderStickerNode(false)}
           </div>
         )}
-      </div>
-
-      {/* Permanent, Always-Mounted Hidden Render Node for Export (Guarantees Ref is never null in ANY view mode) */}
-      <div 
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          left: '-9999px',
-          top: '0',
-          width: '150mm',
-          height: '30mm',
-          overflow: 'hidden',
-          pointerEvents: 'none',
-          zIndex: -9999,
-          opacity: 1,
-        }}
-      >
-        <div ref={singleStickerRef} id="permanent-sticker-export-node">
-          {renderStickerNode(false)}
-        </div>
       </div>
 
       {/* Page Header */}
