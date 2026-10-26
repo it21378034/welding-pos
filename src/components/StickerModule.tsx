@@ -21,13 +21,16 @@ import {
   FileCheck,
   Layers,
   Wrench,
-  Info
+  Info,
+  Maximize2
 } from 'lucide-react';
 
 type StickerTheme = 'industrial-dark' | 'brushed-steel' | 'monochrome-clean' | 'royal-navy' | 'hazard-caution';
 type ViewMode = 'fit' | 'actual' | 'sheet';
 
 interface StickerData {
+  widthCm: number;
+  heightCm: number;
   brandName: string;
   tagline: string;
   badgeText: string;
@@ -57,6 +60,8 @@ export const StickerModule: React.FC = () => {
   };
 
   const initialStickerData: StickerData = {
+    widthCm: 15,
+    heightCm: 3,
     brandName: settings.name || 'Vasantha Iron Works',
     tagline: settings.tagline || 'Custom Fabrication, Stainless Steel & Structural Welding Experts',
     badgeText: 'FABRICATED & INSTALLED BY',
@@ -68,7 +73,7 @@ export const StickerModule: React.FC = () => {
     address: settings.address || 'No. 142, Kandy Road, Kiribathgoda, Sri Lanka',
     logoUrl: settings.logoUrl || '/logo.png',
     showLogo: true,
-    warrantyText: '1-Year Welding Joints Warranty',
+    warrantyText: 'Lifetime Welding Joints Warranty',
     showWarranty: false,
     jobTag: '',
   };
@@ -160,9 +165,23 @@ export const StickerModule: React.FC = () => {
     };
   }, [stickerData.websiteUrl]);
 
+  // Calculate A4 sheet yield based on customized sticker size
+  const calculateA4Yield = (wCm: number, hCm: number) => {
+    const wMm = wCm * 10;
+    const hMm = hCm * 10;
+    const gap = 3;
+    const usableW = 194; // 210mm - 16mm margins
+    const usableH = 273; // 297mm - 24mm margins
+    const cols = Math.max(1, Math.floor((usableW + gap) / (wMm + gap)));
+    const rows = Math.max(1, Math.floor((usableH + gap) / (hMm + gap)));
+    return { cols, rows, total: cols * rows };
+  };
+
   // Reset to current company settings
   const handleResetToSettings = () => {
     setStickerData({
+      widthCm: 15,
+      heightCm: 3,
       brandName: settings.name || 'Vasantha Iron Works',
       tagline: settings.tagline || 'Custom Fabrication, Stainless Steel & Structural Welding Experts',
       badgeText: 'FABRICATED & INSTALLED BY',
@@ -174,7 +193,7 @@ export const StickerModule: React.FC = () => {
       address: settings.address || 'No. 142, Kandy Road, Kiribathgoda, Sri Lanka',
       logoUrl: settings.logoUrl || '/logo.png',
       showLogo: true,
-      warrantyText: '1-Year Welding Joints Warranty',
+      warrantyText: 'Lifetime Welding Joints Warranty',
       showWarranty: false,
       jobTag: '',
     });
@@ -371,15 +390,17 @@ export const StickerModule: React.FC = () => {
     }
   };
 
-  // Direct native 2D Canvas rendering — crystal sharp 300 DPI, zero html2canvas or oklch errors
+  // Direct native 2D Canvas rendering — dynamically scales with custom width & height
   const generateStickerCanvas = async (): Promise<HTMLCanvasElement | null> => {
     const canvas = document.createElement('canvas');
-    const width = 1772; // exact 150mm at 300 DPI
-    const height = 354; // exact 30mm at 300 DPI
+    const width = Math.round(stickerData.widthCm * 10 * 11.811);
+    const height = Math.round(stickerData.heightCm * 10 * 11.811);
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
+
+    const s = Math.max(0.55, Math.min(2.0, height / 354)); // vertical scale relative to standard 3cm
 
     const [logoImg, qrImg] = await Promise.all([
       stickerData.showLogo && (logoBase64 || stickerData.logoUrl)
@@ -391,7 +412,7 @@ export const StickerModule: React.FC = () => {
     const cp = getCanvasPalette(theme);
 
     // 1. Draw rounded outer background
-    drawCanvasRoundedRect(ctx, 4, 4, width - 8, height - 8, 16);
+    drawCanvasRoundedRect(ctx, 4, 4, width - 8, height - 8, Math.round(16 * s));
     const grad = ctx.createLinearGradient(0, 0, width, height);
     grad.addColorStop(0, cp.bgFrom);
     grad.addColorStop(1, cp.bgTo);
@@ -406,126 +427,152 @@ export const StickerModule: React.FC = () => {
     if (cp.hazard) {
       ctx.save();
       ctx.clip();
-      for (let x = -50; x < width + 50; x += 36) {
+      const stripeH = Math.round(14 * s);
+      for (let x = -50; x < width + 50; x += Math.round(36 * s)) {
         ctx.fillStyle = '#eab308';
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x + 18, 0);
-        ctx.lineTo(x + 36, 14);
-        ctx.lineTo(x + 18, 14);
+        ctx.lineTo(x + Math.round(18 * s), 0);
+        ctx.lineTo(x + Math.round(36 * s), stripeH);
+        ctx.lineTo(x + Math.round(18 * s), stripeH);
         ctx.closePath();
         ctx.fill();
 
         ctx.beginPath();
-        ctx.moveTo(x, height - 14);
-        ctx.lineTo(x + 18, height - 14);
-        ctx.lineTo(x + 36, height);
-        ctx.lineTo(x + 18, height);
+        ctx.moveTo(x, height - stripeH);
+        ctx.lineTo(x + Math.round(18 * s), height - stripeH);
+        ctx.lineTo(x + Math.round(36 * s), height);
+        ctx.lineTo(x + Math.round(18 * s), height);
         ctx.closePath();
         ctx.fill();
       }
       ctx.restore();
     }
 
-    // 2. SECTION 1: Brand & Logo (Left ~570px)
-    let textStartX = 40;
-    if (logoImg) {
-      const logoX = 35;
-      const logoY = 67;
-      const logoSize = 220;
+    // 2. SECTION 1: Brand & Logo
+    const logoSize = Math.round(Math.min(height - 40 * s, 220 * s));
+    const logoX = Math.round(30 * s);
+    const logoY = Math.round((height - logoSize) / 2);
+    let textStartX = Math.round(35 * s);
 
+    if (logoImg) {
       ctx.save();
       ctx.beginPath();
-      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 4, 0, Math.PI * 2);
+      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 3, 0, Math.PI * 2);
       ctx.fillStyle = theme === 'monochrome-clean' ? '#f1f5f9' : 'rgba(2, 6, 23, 0.7)';
       ctx.fill();
       ctx.strokeStyle = cp.dividerColor;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = Math.max(2, 3 * s);
       ctx.stroke();
       ctx.clip();
-      ctx.drawImage(logoImg, logoX + 10, logoY + 10, logoSize - 20, logoSize - 20);
+      ctx.drawImage(logoImg, logoX + 8 * s, logoY + 8 * s, logoSize - 16 * s, logoSize - 16 * s);
       ctx.restore();
 
-      textStartX = 280;
+      textStartX = logoX + logoSize + Math.round(20 * s);
     }
 
     // Badge
     if (stickerData.badgeText) {
-      ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-      const badgeW = Math.min(270, ctx.measureText(stickerData.badgeText.toUpperCase()).width + 18);
-      drawCanvasRoundedRect(ctx, textStartX, 62, badgeW, 26, 6);
+      ctx.font = `900 ${Math.round(13 * s)}px system-ui, -apple-system, sans-serif`;
+      const badgeW = Math.min(Math.round(280 * s), ctx.measureText(stickerData.badgeText.toUpperCase()).width + 18 * s);
+      drawCanvasRoundedRect(ctx, textStartX, Math.round(55 * s), badgeW, Math.round(26 * s), Math.round(6 * s));
       ctx.fillStyle = cp.badgeBg;
       ctx.fill();
 
       ctx.fillStyle = cp.badgeText;
-      ctx.fillText(stickerData.badgeText.toUpperCase(), textStartX + 9, 80);
+      ctx.fillText(stickerData.badgeText.toUpperCase(), textStartX + 8 * s, Math.round(73 * s));
     }
 
     // Company Name
     ctx.fillStyle = cp.titleColor;
-    ctx.font = '900 27px system-ui, -apple-system, sans-serif';
-    const words = stickerData.brandName.toUpperCase().split(' ');
-    if (words.length > 2 && ctx.measureText(stickerData.brandName.toUpperCase()).width > 280) {
-      const mid = Math.ceil(words.length / 2);
-      const line1 = words.slice(0, mid).join(' ');
-      const line2 = words.slice(mid).join(' ');
-      ctx.fillText(line1, textStartX, 122);
-      ctx.fillText(line2, textStartX, 154);
-    } else {
-      ctx.fillText(stickerData.brandName.toUpperCase(), textStartX, 130);
-    }
+    ctx.font = `900 ${Math.round(26 * s)}px system-ui, -apple-system, sans-serif`;
+    const nameY = stickerData.badgeText ? Math.round(118 * s) : Math.round(95 * s);
+    ctx.fillText(stickerData.brandName.toUpperCase(), textStartX, nameY, Math.round(width * 0.32));
 
     // Tagline
     if (stickerData.tagline) {
       ctx.fillStyle = cp.subColor;
-      ctx.font = '500 16px system-ui, -apple-system, sans-serif';
-      ctx.fillText(stickerData.tagline, textStartX, 192, 280);
+      ctx.font = `500 ${Math.round(15 * s)}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText(stickerData.tagline, textStartX, Math.round(168 * s), Math.round(width * 0.32));
     }
 
     // Divider 1
+    const divider1X = Math.min(Math.round(width * 0.33), textStartX + Math.round(290 * s));
     ctx.beginPath();
-    ctx.moveTo(580, 30);
-    ctx.lineTo(580, 324);
+    ctx.moveTo(divider1X, Math.round(25 * s));
+    ctx.lineTo(divider1X, height - Math.round(25 * s));
     ctx.strokeStyle = cp.dividerColor;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = Math.max(1.5, 2.5 * s);
     ctx.stroke();
 
-    // 3. SECTION 2: Contact Information (Center 605 - 1430px)
-    const contactStartX = 605;
+    // 3. SECTION 3: QR Code & Call to Action (Right)
+    const qrBoxSize = Math.round(Math.min(height - 40 * s, 226 * s));
+    const qrBoxX = width - qrBoxSize - Math.round(30 * s);
+    const qrBoxY = Math.round((height - qrBoxSize - 25 * s) / 2);
+
+    drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, Math.round(14 * s));
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = cp.qrBoxBorder;
+    ctx.lineWidth = Math.max(1.5, 2 * s);
+    ctx.stroke();
+
+    if (qrImg) {
+      ctx.drawImage(qrImg, qrBoxX + 10 * s, qrBoxY + 10 * s, qrBoxSize - 20 * s, qrBoxSize - 20 * s);
+    }
+
+    ctx.font = `900 ${Math.round(16 * s)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = cp.qrLabelColor;
+    ctx.textAlign = 'center';
+    ctx.fillText((stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(), qrBoxX + qrBoxSize / 2, qrBoxY + qrBoxSize + Math.round(24 * s));
+    ctx.textAlign = 'left';
+
+    // Divider 2
+    const divider2X = qrBoxX - Math.round(25 * s);
+    ctx.beginPath();
+    ctx.moveTo(divider2X, Math.round(25 * s));
+    ctx.lineTo(divider2X, height - Math.round(25 * s));
+    ctx.strokeStyle = cp.dividerColor;
+    ctx.lineWidth = Math.max(1.5, 2.5 * s);
+    ctx.stroke();
+
+    // 4. SECTION 2: Contact Information (Center)
+    const contactStartX = divider1X + Math.round(22 * s);
+    const contactMaxW = divider2X - contactStartX - Math.round(15 * s);
 
     // Row 1: Hotlines
-    ctx.font = '800 25px monospace, system-ui';
+    ctx.font = `800 ${Math.round(24 * s)}px monospace, system-ui`;
     ctx.fillStyle = cp.phoneAccent;
-    ctx.fillText('📞', contactStartX, 80);
+    ctx.fillText('📞', contactStartX, Math.round(75 * s));
     ctx.fillStyle = cp.phoneColor;
     const phoneText = `${stickerData.phone1}${stickerData.phone2 ? `   |   ${stickerData.phone2}` : ''}`;
-    ctx.fillText(phoneText, contactStartX + 35, 80);
+    ctx.fillText(phoneText, contactStartX + 32 * s, Math.round(75 * s), contactMaxW - 35 * s);
 
     // Row 2: Website & Email
-    ctx.font = '700 20px system-ui, -apple-system, sans-serif';
+    ctx.font = `700 ${Math.round(19 * s)}px system-ui, -apple-system, sans-serif`;
     let curX = contactStartX;
     if (stickerData.websiteUrl) {
       ctx.fillStyle = cp.webColor;
       const webDisplay = '🌐 ' + stickerData.websiteUrl.replace(/^https?:\/\//, '');
-      ctx.fillText(webDisplay, curX, 140);
-      curX += ctx.measureText(webDisplay).width + 30;
+      ctx.fillText(webDisplay, curX, Math.round(135 * s));
+      curX += ctx.measureText(webDisplay).width + 25 * s;
     }
-    if (stickerData.email) {
+    if (stickerData.email && curX < divider2X - 100 * s) {
       ctx.fillStyle = cp.contactColor;
-      ctx.fillText('✉ ' + stickerData.email, curX, 140);
+      ctx.fillText('✉ ' + stickerData.email, curX, Math.round(135 * s), divider2X - curX - 15 * s);
     }
 
     // Row 3: Address
-    ctx.font = '500 19px system-ui, -apple-system, sans-serif';
+    ctx.font = `500 ${Math.round(18 * s)}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = cp.contactColor;
-    ctx.fillText('📍 ' + stickerData.address, contactStartX, 200, 790);
+    ctx.fillText('📍 ' + stickerData.address, contactStartX, Math.round(195 * s), contactMaxW);
 
     // Row 4: Warranty or Job Tag
     if (stickerData.showWarranty || stickerData.jobTag) {
       const badgeStr = `🛡 ${stickerData.jobTag ? `${stickerData.jobTag}  •  ` : ''}${stickerData.warrantyText}`;
-      ctx.font = '700 16px system-ui, -apple-system, sans-serif';
-      const tagW = Math.min(800, ctx.measureText(badgeStr).width + 24);
-      drawCanvasRoundedRect(ctx, contactStartX, 240, tagW, 32, 6);
+      ctx.font = `700 ${Math.round(16 * s)}px system-ui, -apple-system, sans-serif`;
+      const tagW = Math.min(contactMaxW, ctx.measureText(badgeStr).width + 22 * s);
+      drawCanvasRoundedRect(ctx, contactStartX, Math.round(235 * s), tagW, Math.round(32 * s), Math.round(6 * s));
       ctx.fillStyle = cp.dividerColor;
       ctx.fill();
       ctx.strokeStyle = cp.borderColor;
@@ -533,46 +580,13 @@ export const StickerModule: React.FC = () => {
       ctx.stroke();
 
       ctx.fillStyle = cp.phoneAccent;
-      ctx.fillText(badgeStr, contactStartX + 12, 262);
+      ctx.fillText(badgeStr, contactStartX + 10 * s, Math.round(257 * s), tagW - 20 * s);
     }
-
-    // Divider 2
-    ctx.beginPath();
-    ctx.moveTo(1440, 30);
-    ctx.lineTo(1440, 324);
-    ctx.strokeStyle = cp.dividerColor;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // 4. SECTION 3: QR Code & Call to Action (Right ~1450 to 1772px)
-    const qrBoxX = 1495;
-    const qrBoxY = 40;
-    const qrBoxSize = 226;
-
-    // White quiet-zone container
-    drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 14);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = cp.qrBoxBorder;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // QR Code Image
-    if (qrImg) {
-      ctx.drawImage(qrImg, qrBoxX + 10, qrBoxY + 10, qrBoxSize - 20, qrBoxSize - 20);
-    }
-
-    // Scan Prompt text
-    ctx.font = '900 17px system-ui, -apple-system, sans-serif';
-    ctx.fillStyle = cp.qrLabelColor;
-    ctx.textAlign = 'center';
-    ctx.fillText((stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(), qrBoxX + qrBoxSize / 2, 300);
-    ctx.textAlign = 'left';
 
     return canvas;
   };
 
-  // Download Single 15cm x 3cm PDF
+  // Download Single Sticker PDF with customized size
   const handleDownloadSinglePDF = async () => {
     setIsExporting(true);
     try {
@@ -580,17 +594,19 @@ export const StickerModule: React.FC = () => {
       if (!canvas) throw new Error('Sticker canvas element not available');
 
       const imgData = canvas.toDataURL('image/png');
-      // Format [30, 150] in landscape gives exactly 150mm width x 30mm height
+      const isLandscape = stickerData.widthCm >= stickerData.heightCm;
       const doc = new jsPDF({
-        orientation: 'landscape',
+        orientation: isLandscape ? 'landscape' : 'portrait',
         unit: 'mm',
-        format: [30, 150],
+        format: isLandscape 
+          ? [stickerData.heightCm * 10, stickerData.widthCm * 10]
+          : [stickerData.widthCm * 10, stickerData.heightCm * 10],
       });
 
-      doc.addImage(imgData, 'PNG', 0, 0, 150, 30);
+      doc.addImage(imgData, 'PNG', 0, 0, stickerData.widthCm * 10, stickerData.heightCm * 10);
       const cleanName = (stickerData.brandName || 'sticker').toLowerCase().replace(/[^a-z0-9]/g, '-');
-      doc.save(`${cleanName}-sticker-15x3cm.pdf`);
-      showToast('15cm × 3cm Single Sticker PDF downloaded!', 'success');
+      doc.save(`${cleanName}-sticker-${stickerData.widthCm}x${stickerData.heightCm}cm.pdf`);
+      showToast(`${stickerData.widthCm}cm × ${stickerData.heightCm}cm Single Sticker PDF downloaded!`, 'success');
     } catch (err) {
       console.error('Error generating single PDF:', err);
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -600,7 +616,7 @@ export const StickerModule: React.FC = () => {
     }
   };
 
-  // Download A4 Sheet of 8 Stickers PDF with cutting lines
+  // Download A4 Sheet PDF dynamically calculated for current sticker size
   const handleDownloadSheetPDF = async () => {
     setIsExporting(true);
     try {
@@ -614,37 +630,41 @@ export const StickerModule: React.FC = () => {
         format: 'a4',
       });
 
-      const stickerW = 150;
-      const stickerH = 30;
-      const startX = (210 - stickerW) / 2; // 30mm centered on A4
-      const startY = 16;
-      const gapY = 3.5;
+      const stickerWMm = stickerData.widthCm * 10;
+      const stickerHMm = stickerData.heightCm * 10;
+      const gap = 3;
+      const { cols, rows, total } = calculateA4Yield(stickerData.widthCm, stickerData.heightCm);
+
+      const totalGridW = cols * stickerWMm + (cols - 1) * gap;
+      const totalGridH = rows * stickerHMm + (rows - 1) * gap;
+
+      const startX = (210 - totalGridW) / 2;
+      const startY = 14 + Math.max(0, (273 - totalGridH) / 2);
 
       // Header on A4 sheet
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(`${stickerData.brandName} — 15cm × 3cm Branded Product Stickers (Sheet of 8)`, 105, 10, { align: 'center' });
-      doc.text(`Print at 100% Scale / Actual Size on A4 Adhesive Sticker Paper. Cut along dashed lines.`, 105, 13.5, { align: 'center' });
+      doc.text(`${stickerData.brandName} — ${stickerData.widthCm}cm × ${stickerData.heightCm}cm Branded Product Stickers (Sheet of ${total})`, 105, 9, { align: 'center' });
+      doc.text(`Print at 100% Scale / Actual Size on A4 Adhesive Sticker Paper. Cut along dashed lines.`, 105, 12.5, { align: 'center' });
 
-      for (let i = 0; i < 8; i++) {
-        const curY = startY + i * (stickerH + gapY);
-        // Draw sticker
-        doc.addImage(imgData, 'PNG', startX, curY, stickerW, stickerH);
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          const curX = startX + c * (stickerWMm + gap);
+          const curY = startY + r * (stickerHMm + gap);
+          doc.addImage(imgData, 'PNG', curX, curY, stickerWMm, stickerHMm);
 
-        // Dashed cutting guide
-        doc.setDrawColor(180, 185, 195);
-        doc.setLineWidth(0.2);
-        try {
-          doc.setLineDashPattern([2, 2], 0);
-        } catch (_) {
-          // Fallback if not supported
+          doc.setDrawColor(180, 185, 195);
+          doc.setLineWidth(0.2);
+          try {
+            doc.setLineDashPattern([2, 2], 0);
+          } catch (_) {}
+          doc.rect(curX, curY, stickerWMm, stickerHMm);
         }
-        doc.rect(startX, curY, stickerW, stickerH);
       }
 
       const cleanName = (stickerData.brandName || 'sticker').toLowerCase().replace(/[^a-z0-9]/g, '-');
-      doc.save(`${cleanName}-stickers-sheet-a4.pdf`);
-      showToast('A4 Sticker Sheet PDF (8 Stickers) downloaded!', 'success');
+      doc.save(`${cleanName}-stickers-${stickerData.widthCm}x${stickerData.heightCm}cm-sheet.pdf`);
+      showToast(`A4 Sticker Sheet PDF (${total} Stickers) downloaded!`, 'success');
     } catch (err) {
       console.error('Error generating sheet PDF:', err);
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -663,10 +683,10 @@ export const StickerModule: React.FC = () => {
 
       const link = document.createElement('a');
       const cleanName = (stickerData.brandName || 'sticker').toLowerCase().replace(/[^a-z0-9]/g, '-');
-      link.download = `${cleanName}-sticker-15x3cm-300dpi.png`;
+      link.download = `${cleanName}-sticker-${stickerData.widthCm}x${stickerData.heightCm}cm-300dpi.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-      showToast('High-Res 300 DPI PNG (1772 × 354 px) downloaded!', 'success');
+      showToast(`High-Res 300 DPI PNG (${canvas.width} × ${canvas.height} px) downloaded!`, 'success');
     } catch (err) {
       console.error(err);
       showToast('Failed to export PNG image', 'error');
@@ -780,12 +800,12 @@ export const StickerModule: React.FC = () => {
 
   const ts = getThemeStyles();
 
-  // Single sticker component rendered with exact 150mm x 30mm dimensions
+  // Single sticker component rendered with customized physical dimensions
   const renderStickerNode = (_isSheetInstance = false) => (
     <div
       style={{
-        width: '150mm',
-        height: '30mm',
+        width: `${stickerData.widthCm}cm`,
+        height: `${stickerData.heightCm}cm`,
         boxSizing: 'border-box',
       }}
       className={`sticker-render-root relative select-none flex items-stretch p-[2.2mm] rounded-[1.5mm] overflow-hidden ${ts.wrapper}`}
@@ -957,9 +977,9 @@ export const StickerModule: React.FC = () => {
         {viewMode === 'sheet' ? (
           <div className="p-4 mx-auto max-w-[210mm] space-y-[3.5mm]">
             <p className="text-[10px] text-slate-500 text-center mb-2">
-              {stickerData.brandName} — 15cm × 3cm Branded Product Stickers (Sheet of 8)
+              {stickerData.brandName} — {stickerData.widthCm}cm × {stickerData.heightCm}cm Branded Product Stickers (Sheet of {calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total})
             </p>
-            {Array.from({ length: 8 }).map((_, idx) => (
+            {Array.from({ length: calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total }).map((_, idx) => (
               <div key={idx} className="relative border border-dashed border-slate-300">
                 {renderStickerNode(true)}
               </div>
@@ -983,7 +1003,7 @@ export const StickerModule: React.FC = () => {
               <h2 className="text-xl sm:text-2xl font-black text-slate-100 flex items-center gap-2">
                 {t('makeSticker') || 'Make Sticker'}
                 <span className="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-amber-500 text-slate-950 uppercase">
-                  15 cm × 3 cm
+                  {stickerData.widthCm} cm × {stickerData.heightCm} cm
                 </span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -1017,7 +1037,7 @@ export const StickerModule: React.FC = () => {
             onClick={handleDownloadPNG}
             disabled={isExporting}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold border border-slate-700 transition"
-            title="Download high-resolution 300 DPI PNG (1772 × 354 px)"
+            title={`Download high-resolution 300 DPI PNG (${Math.round(stickerData.widthCm * 10 * 11.811)} × ${Math.round(stickerData.heightCm * 10 * 11.811)} px)`}
           >
             <Download className="w-3.5 h-3.5 text-blue-400" />
             <span>300 DPI PNG</span>
@@ -1027,7 +1047,7 @@ export const StickerModule: React.FC = () => {
             onClick={handleDownloadSinglePDF}
             disabled={isExporting}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold border border-amber-500/30 transition shadow-sm"
-            title="Download exact 15cm × 3cm Single Sticker PDF"
+            title={`Download exact ${stickerData.widthCm}cm × ${stickerData.heightCm}cm Single Sticker PDF`}
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Single PDF</span>
@@ -1037,10 +1057,10 @@ export const StickerModule: React.FC = () => {
             onClick={handleDownloadSheetPDF}
             disabled={isExporting}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition shadow-lg shadow-amber-500/25 active:scale-95"
-            title="Download A4 Sheet with 8 Stickers & Cut Guides"
+            title={`Download A4 Sheet with ${calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} Stickers & Cut Guides`}
           >
             <Layers className="w-4 h-4" />
-            <span>A4 Sheet (8) PDF</span>
+            <span>A4 Sheet ({calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total}) PDF</span>
           </button>
         </div>
       </div>
@@ -1049,6 +1069,100 @@ export const StickerModule: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: Controls & Settings (5 Cols) */}
         <div className="lg:col-span-5 space-y-5">
+          {/* Size Customizer Card */}
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg space-y-3.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Sticker Dimensions (Customizable)</span>
+              </label>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {stickerData.widthCm} cm × {stickerData.heightCm} cm
+              </span>
+            </div>
+
+            {/* Quick Size Preset Buttons */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { label: 'Standard', w: 15, h: 3, desc: '15 × 3 cm' },
+                { label: 'Compact', w: 10, h: 2.5, desc: '10 × 2.5 cm' },
+                { label: 'Medium', w: 12, h: 3, desc: '12 × 3 cm' },
+                { label: 'Large Plate', w: 18, h: 4, desc: '18 × 4 cm' },
+                { label: 'Slim Strip', w: 14, h: 2, desc: '14 × 2 cm' },
+                { label: 'Square Badge', w: 6, h: 6, desc: '6 × 6 cm' },
+              ].map((preset) => {
+                const isSelected = stickerData.widthCm === preset.w && stickerData.heightCm === preset.h;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setStickerData(prev => ({ ...prev, widthCm: preset.w, heightCm: preset.h }))}
+                    className={`p-2 rounded-xl border text-left transition flex flex-col ${
+                      isSelected
+                        ? 'bg-amber-500/15 border-amber-500 text-amber-300 ring-1 ring-amber-500/30'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="text-xs font-bold">{preset.label}</span>
+                    <span className="text-[10px] text-slate-400">{preset.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom Width & Height Number Inputs */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Custom Width
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="4"
+                    max="30"
+                    step="0.5"
+                    value={stickerData.widthCm}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 15;
+                      setStickerData(prev => ({ ...prev, widthCm: Math.max(4, Math.min(30, val)) }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="absolute right-3 top-2 text-[10px] text-slate-500 font-bold">cm</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Custom Height
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1.5"
+                    max="15"
+                    step="0.5"
+                    value={stickerData.heightCm}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 3;
+                      setStickerData(prev => ({ ...prev, heightCm: Math.max(1.5, Math.min(15, val)) }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="absolute right-3 top-2 text-[10px] text-slate-500 font-bold">cm</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Yield Info Pill */}
+            <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+              <span>A4 Paper Yield:</span>
+              <span className="text-amber-400 font-bold">
+                {calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} stickers per A4 sheet
+              </span>
+            </div>
+          </div>
           {/* Theme Selector Card */}
           <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg space-y-3">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -1404,9 +1518,9 @@ export const StickerModule: React.FC = () => {
                   className={`px-3 py-1 rounded-lg font-semibold transition ${
                     viewMode === 'actual' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Calibrated to exact 15cm × 3cm physical dimensions"
+                  title={`Calibrated to exact ${stickerData.widthCm}cm × ${stickerData.heightCm}cm physical dimensions`}
                 >
-                  Actual Size (15×3cm)
+                  Actual Size ({stickerData.widthCm}×{stickerData.heightCm}cm)
                 </button>
                 <button
                   type="button"
@@ -1414,26 +1528,26 @@ export const StickerModule: React.FC = () => {
                   className={`px-3 py-1 rounded-lg font-semibold transition ${
                     viewMode === 'sheet' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="A4 Sheet layout with 8 stickers"
+                  title={`A4 Sheet layout with ${calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} stickers`}
                 >
-                  A4 Sheet (8)
+                  A4 Sheet ({calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total})
                 </button>
               </div>
             </div>
 
-            {/* 15 CM Centimeter Ruler Guide (Visible in Actual & Fit Mode) */}
+            {/* Dynamic Centimeter Ruler Guide (Visible in Actual & Fit Mode) */}
             {viewMode !== 'sheet' && (
               <div className="overflow-x-auto pb-2">
-                <div style={{ width: viewMode === 'actual' ? '150mm' : '100%', minWidth: '150mm' }} className="mx-auto select-none">
+                <div style={{ width: viewMode === 'actual' ? `${stickerData.widthCm * 10}mm` : '100%', minWidth: `${stickerData.widthCm * 10}mm` }} className="mx-auto select-none">
                   {/* Top Horizontal Centimeter Ruler */}
                   <div className="h-5 flex items-end border-b border-amber-500/40 text-[9px] font-mono text-amber-400/80 mb-1 px-[2.2mm]">
-                    {Array.from({ length: 16 }).map((_, i) => (
+                    {Array.from({ length: Math.ceil(stickerData.widthCm) + 1 }).map((_, i) => (
                       <div 
                         key={i} 
-                        style={{ width: i === 15 ? '0px' : '10mm' }} 
+                        style={{ width: i === Math.ceil(stickerData.widthCm) ? '0px' : '10mm' }} 
                         className="relative flex flex-col items-start"
                       >
-                        <span className="text-[8px] -translate-x-1/2">{i === 15 ? '15cm' : i}</span>
+                        <span className="text-[8px] -translate-x-1/2">{i === Math.ceil(stickerData.widthCm) ? `${stickerData.widthCm}cm` : i}</span>
                         <div className="w-[1px] h-2 bg-amber-500/60" />
                       </div>
                     ))}
@@ -1443,7 +1557,7 @@ export const StickerModule: React.FC = () => {
                   <div className="flex items-center justify-center p-3 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-inner overflow-x-auto">
                     <div 
                       style={{
-                        transform: viewMode === 'fit' ? 'scale(1.25)' : 'none',
+                        transform: viewMode === 'fit' ? 'scale(1.2)' : 'none',
                         transformOrigin: 'center center',
                         margin: viewMode === 'fit' ? '15px 0' : '0',
                       }}
@@ -1460,32 +1574,39 @@ export const StickerModule: React.FC = () => {
             {viewMode === 'sheet' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                  <span>A4 Paper Preview (210mm × 297mm) — 8 Identical Branded Stickers</span>
+                  <span>A4 Paper Preview (210mm × 297mm) — {calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} Identical Branded Stickers</span>
                   <span className="text-amber-400 font-bold">Standard Self-Adhesive Paper</span>
                 </div>
 
                 <div className="max-h-[500px] overflow-y-auto p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col items-center gap-3">
-                  <div className="w-full max-w-[170mm] p-4 bg-white text-slate-900 rounded-lg shadow-2xl space-y-3 select-none">
+                  <div className="w-full max-w-[190mm] p-4 bg-white text-slate-900 rounded-lg shadow-2xl space-y-3 select-none">
                     <div className="text-center border-b border-slate-200 pb-2">
                       <p className="text-[10px] font-bold text-slate-600">
-                        {stickerData.brandName} — Product Label Stickers (150mm × 30mm)
+                        {stickerData.brandName} — Product Label Stickers ({stickerData.widthCm * 10}mm × {stickerData.heightCm * 10}mm)
                       </p>
                       <p className="text-[8px] text-slate-400">
-                        Print at 100% scale (No margins). Cut along the outer dashed guides.
+                        Print at 100% scale (No margins). Cut along the outer dashed guides ({calculateA4Yield(stickerData.widthCm, stickerData.heightCm).cols} cols × {calculateA4Yield(stickerData.widthCm, stickerData.heightCm).rows} rows = {calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} labels per A4 sheet).
                       </p>
                     </div>
 
-                    {/* 8 Stickers on A4 Sheet */}
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className="p-0.5 rounded border border-dashed border-slate-400 flex items-center justify-center"
-                      >
-                        <div className="scale-[0.85] origin-center my-[-2mm]">
-                          {renderStickerNode(true)}
+                    {/* Dynamic Grid of Stickers on A4 Sheet */}
+                    <div 
+                      className="grid gap-2"
+                      style={{
+                        gridTemplateColumns: `repeat(${calculateA4Yield(stickerData.widthCm, stickerData.heightCm).cols}, minmax(0, 1fr))`
+                      }}
+                    >
+                      {Array.from({ length: calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total }).map((_, i) => (
+                        <div 
+                          key={i} 
+                          className="p-0.5 rounded border border-dashed border-slate-400 flex items-center justify-center overflow-hidden"
+                        >
+                          <div className="scale-[0.8] origin-center my-[-2mm]">
+                            {renderStickerNode(true)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1496,7 +1617,7 @@ export const StickerModule: React.FC = () => {
               <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div className="text-slate-300 space-y-1">
                 <p className="font-semibold text-slate-100">
-                  Exact Output Dimensions: <span className="text-amber-400 font-bold">15 cm width × 3 cm height</span> (150 mm × 30 mm).
+                  Exact Output Dimensions: <span className="text-amber-400 font-bold">{stickerData.widthCm} cm width × {stickerData.heightCm} cm height</span> ({stickerData.widthCm * 10} mm × {stickerData.heightCm * 10} mm).
                 </p>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   Ideal for sticking onto finished metal gates, stair railings, structural trusses, iron grills, canopy stands, or glass partitions before customer handover. The high-contrast QR code can be scanned instantly with any modern phone camera to drive customers directly to your website.
@@ -1528,7 +1649,7 @@ export const StickerModule: React.FC = () => {
                   className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold transition shadow-lg shadow-amber-500/25 active:scale-95"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download Sheet PDF</span>
+                  <span>Download A4 Sheet PDF ({calculateA4Yield(stickerData.widthCm, stickerData.heightCm).total} Labels)</span>
                 </button>
               </div>
             </div>
