@@ -74,7 +74,7 @@ export const StickerModule: React.FC = () => {
     logoUrl: settings.logoUrl || '/logo.png',
     showLogo: true,
     warrantyText: 'Lifetime Welding Joints Warranty',
-    showWarranty: false,
+    showWarranty: true,
     jobTag: '',
   };
 
@@ -224,7 +224,7 @@ export const StickerModule: React.FC = () => {
   const handleLinkDoc = (docId: string) => {
     setSelectedDocId(docId);
     if (!docId) {
-      setStickerData(prev => ({ ...prev, jobTag: '', showWarranty: false }));
+      setStickerData(prev => ({ ...prev, jobTag: '' }));
       return;
     }
 
@@ -455,7 +455,11 @@ export const StickerModule: React.FC = () => {
 
     const padX = Math.round(20 * s);
     const padY = Math.round(16 * s);
-    const innerH = height - 2 * padY;
+    const stripeH = cp.hazard ? Math.round(15 * s) : 0;
+    const safeTopY = stripeH + Math.round(12 * s);
+    const safeBottomY = height - stripeH - Math.round(12 * s);
+    const usableH = safeBottomY - safeTopY;
+    const centerY = (safeTopY + safeBottomY) / 2;
     const aspectRatio = width / height;
 
     // =========================================================================
@@ -464,24 +468,24 @@ export const StickerModule: React.FC = () => {
     if (aspectRatio >= 1.7) {
       // 1. COLUMN 3: QR Code (Right side)
       // Height-constrained QR square box with prompt below
-      const qrBoxSize = Math.round(Math.max(36 * s, Math.min(innerH - 28 * s, width * 0.18)));
-      const qrColWidth = qrBoxSize + Math.round(32 * s);
+      const qrBoxSize = Math.round(Math.min(usableH - 28 * s, 215 * s));
+      const qrColWidth = qrBoxSize + Math.round(36 * s);
       const divider2X = width - padX - qrColWidth;
 
-      // 2. COLUMN 1 & COLUMN 2: Proportional dynamic split
+      // 2. COLUMN 1 & COLUMN 2: Proportional balanced split
+      // Allocate 47% to Brand & Logo, 53% to Contact details
       const availableW = divider2X - padX - Math.round(24 * s);
-      // Give Brand 40% and Contact 60% of available middle width
-      const col1Width = Math.round(availableW * 0.40);
+      const col1Width = Math.round(availableW * 0.47);
       const divider1X = padX + col1Width;
 
       // -----------------------------------------------------------------------
-      // SECTION 1: Brand & Logo (Strictly bounded within [padX, divider1X])
+      // SECTION 1: Brand & Logo (Vertically centered alongside the logo)
       // -----------------------------------------------------------------------
       let brandTextX = padX;
       if (logoImg) {
-        const logoSize = Math.round(Math.min(innerH - 8 * s, col1Width * 0.38, 220 * s));
-        const logoX = padX + Math.round(4 * s);
-        const logoY = padY + Math.round((innerH - logoSize) / 2);
+        const logoSize = Math.round(Math.min(usableH - 8 * s, col1Width * 0.36, 220 * s));
+        const logoX = padX + Math.round(6 * s);
+        const logoY = Math.round(centerY - logoSize / 2);
 
         ctx.save();
         ctx.beginPath();
@@ -495,69 +499,91 @@ export const StickerModule: React.FC = () => {
         ctx.drawImage(logoImg, logoX + 6 * s, logoY + 6 * s, logoSize - 12 * s, logoSize - 12 * s);
         ctx.restore();
 
-        brandTextX = logoX + logoSize + Math.round(14 * s);
+        brandTextX = logoX + logoSize + Math.round(16 * s);
       } else {
-        brandTextX = padX + Math.round(8 * s);
+        brandTextX = padX + Math.round(10 * s);
       }
 
       // Maximum available width for brand text — strictly guarantees no crossing divider 1!
-      const brandMaxW = Math.max(40, divider1X - brandTextX - Math.round(14 * s));
+      const brandMaxW = Math.max(60, divider1X - brandTextX - Math.round(16 * s));
+
+      // Auto-scale company name font to fit brandMaxW
+      let brandFontSize = Math.round(Math.min(27 * s, usableH * 0.17));
+      ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      while (ctx.measureText(stickerData.brandName.toUpperCase()).width > brandMaxW && brandFontSize > Math.round(12 * s)) {
+        brandFontSize -= 1;
+        ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      }
+
+      // Calculate total vertical height of the brand text block for TRUE vertical centering
+      const badgeH = stickerData.badgeText ? Math.round(23 * s) : 0;
+      const badgeGap = stickerData.badgeText ? Math.round(9 * s) : 0;
+      const nameH = brandFontSize;
+      const tagGap = stickerData.tagline ? Math.round(8 * s) : 0;
+      const tagH = stickerData.tagline ? Math.round(14 * s) : 0;
+      const totalBrandBlockH = badgeH + badgeGap + nameH + tagGap + tagH;
+
+      let curBrandY = Math.round(centerY - totalBrandBlockH / 2);
 
       // Badge Label (e.g. FABRICATED & INSTALLED BY)
       if (stickerData.badgeText) {
         ctx.font = `900 ${Math.round(12 * s)}px system-ui, -apple-system, sans-serif`;
         const badgeW = Math.min(brandMaxW, ctx.measureText(stickerData.badgeText.toUpperCase()).width + 16 * s);
-        const badgeH = Math.round(24 * s);
-        drawCanvasRoundedRect(ctx, brandTextX, Math.round(padY + 12 * s), badgeW, badgeH, Math.round(5 * s));
+        drawCanvasRoundedRect(ctx, brandTextX, curBrandY, badgeW, badgeH, Math.round(5 * s));
         ctx.fillStyle = cp.badgeBg;
         ctx.fill();
-
         ctx.fillStyle = cp.badgeText;
-        ctx.fillText(stickerData.badgeText.toUpperCase(), brandTextX + 7 * s, Math.round(padY + 12 * s + badgeH * 0.7), badgeW - 14 * s);
+        ctx.fillText(stickerData.badgeText.toUpperCase(), brandTextX + 8 * s, curBrandY + Math.round(badgeH * 0.72), badgeW - 16 * s);
+        curBrandY += badgeH + badgeGap;
       }
 
-      // Company Name with dynamic font auto-scaler
-      let brandFontSize = Math.round(Math.min(26 * s, innerH * 0.16));
-      ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
-      while (ctx.measureText(stickerData.brandName.toUpperCase()).width > brandMaxW && brandFontSize > Math.round(11 * s)) {
-        brandFontSize -= 1;
-        ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
-      }
+      // Company Name
       ctx.fillStyle = cp.titleColor;
-      const nameY = stickerData.badgeText ? Math.round(padY + innerH * 0.44) : Math.round(padY + innerH * 0.38);
-      ctx.fillText(stickerData.brandName.toUpperCase(), brandTextX, nameY, brandMaxW);
+      ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText(stickerData.brandName.toUpperCase(), brandTextX, curBrandY + brandFontSize * 0.88, brandMaxW);
+      curBrandY += nameH + tagGap;
 
       // Tagline
       if (stickerData.tagline) {
-        let tagFontSize = Math.round(Math.min(14 * s, innerH * 0.09));
-        ctx.font = `500 ${tagFontSize}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = cp.subColor;
-        const tagY = stickerData.badgeText ? Math.round(padY + innerH * 0.65) : Math.round(padY + innerH * 0.58);
-        ctx.fillText(stickerData.tagline, brandTextX, tagY, brandMaxW);
+        ctx.font = `500 ${Math.round(14 * s)}px system-ui, -apple-system, sans-serif`;
+        ctx.fillText(stickerData.tagline, brandTextX, curBrandY + 14 * s * 0.88, brandMaxW);
       }
 
       // Draw Divider 1
       ctx.beginPath();
-      ctx.moveTo(divider1X, Math.round(padY + 8 * s));
-      ctx.lineTo(divider1X, height - Math.round(padY + 8 * s));
+      ctx.moveTo(divider1X, safeTopY + Math.round(4 * s));
+      ctx.lineTo(divider1X, safeBottomY - Math.round(4 * s));
       ctx.strokeStyle = cp.dividerColor;
       ctx.lineWidth = Math.max(1.5, 2 * s);
       ctx.stroke();
 
       // -----------------------------------------------------------------------
-      // SECTION 2: Contact Information (Strictly bounded [divider1X, divider2X])
+      // SECTION 2: Contact Information (Vertically centered, balanced width)
       // -----------------------------------------------------------------------
-      const contactStartX = divider1X + Math.round(18 * s);
-      const contactEndX = divider2X - Math.round(16 * s);
+      const contactStartX = divider1X + Math.round(22 * s);
+      const contactEndX = divider2X - Math.round(18 * s);
       const contactMaxW = Math.max(80, contactEndX - contactStartX);
 
       const hasWarrantyRow = stickerData.showWarranty || stickerData.jobTag;
       const numRows = hasWarrantyRow ? 4 : 3;
-      const rowStep = innerH / (numRows + 0.35);
+
+      // Calculate row heights and dynamic vertical centering
+      const row1H = Math.round(23 * s);
+      const row2H = Math.round(19 * s);
+      const row3H = Math.round(17 * s);
+      const row4H = hasWarrantyRow ? Math.round(29 * s) : 0;
+      const totalContentH = row1H + row2H + row3H + row4H;
+
+      const availableSpacing = usableH - totalContentH;
+      const rowGap = Math.max(Math.round(8 * s), Math.min(Math.round(22 * s), Math.round(availableSpacing / (numRows + 1))));
+      const totalContactH = totalContentH + (numRows - 1) * rowGap;
+
+      let curContactY = Math.round(centerY - totalContactH / 2);
 
       // Row 1: Hotlines
-      const row1Y = Math.round(padY + rowStep * 0.85);
-      const phoneFontSize = Math.round(Math.min(22 * s, rowStep * 0.44));
+      const row1Y = curContactY + row1H * 0.85;
+      const phoneFontSize = Math.round(22 * s);
       ctx.font = `800 ${phoneFontSize}px monospace, system-ui`;
       ctx.fillStyle = cp.phoneAccent;
       ctx.fillText('📞', contactStartX, row1Y);
@@ -566,10 +592,11 @@ export const StickerModule: React.FC = () => {
       ctx.fillStyle = cp.phoneColor;
       const phoneText = `${stickerData.phone1}${stickerData.phone2 ? `   |   ${stickerData.phone2}` : ''}`;
       ctx.fillText(phoneText, contactStartX + phoneIconW, row1Y, contactMaxW - phoneIconW);
+      curContactY += row1H + rowGap;
 
       // Row 2: Website & Email
-      const row2Y = Math.round(padY + rowStep * 1.8);
-      const webEmailFontSize = Math.round(Math.min(18 * s, rowStep * 0.36));
+      const row2Y = curContactY + row2H * 0.85;
+      const webEmailFontSize = Math.round(18 * s);
       ctx.font = `700 ${webEmailFontSize}px system-ui, -apple-system, sans-serif`;
 
       let curX = contactStartX;
@@ -579,7 +606,7 @@ export const StickerModule: React.FC = () => {
         const maxWebW = stickerData.email ? Math.round(contactMaxW * 0.54) : contactMaxW;
         ctx.fillText(webDisplay, curX, row2Y, maxWebW);
         const actualWebW = Math.min(maxWebW, ctx.measureText(webDisplay).width);
-        curX += actualWebW + Math.round(18 * s);
+        curX += actualWebW + Math.round(20 * s);
       }
 
       if (stickerData.email && curX < contactEndX - Math.round(40 * s)) {
@@ -587,48 +614,51 @@ export const StickerModule: React.FC = () => {
         const maxEmailW = contactEndX - curX;
         ctx.fillText('✉ ' + stickerData.email, curX, row2Y, maxEmailW);
       }
+      curContactY += row2H + rowGap;
 
       // Row 3: Address
-      const row3Y = Math.round(padY + rowStep * 2.7);
-      const addrFontSize = Math.round(Math.min(16 * s, rowStep * 0.33));
+      const row3Y = curContactY + row3H * 0.85;
+      const addrFontSize = Math.round(16 * s);
       ctx.font = `500 ${addrFontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = cp.contactColor;
       ctx.fillText('📍 ' + stickerData.address, contactStartX, row3Y, contactMaxW);
+      curContactY += row3H + rowGap;
 
-      // Row 4: Warranty or Job Tag
+      // Row 4: Warranty or Job Tag (Pill Badge)
       if (hasWarrantyRow) {
-        const row4Y = Math.round(padY + rowStep * 3.55);
+        const row4Y = curContactY;
         const badgeStr = `🛡 ${stickerData.jobTag ? `${stickerData.jobTag}  •  ` : ''}${stickerData.warrantyText}`;
-        const badgeFontSize = Math.round(Math.min(15 * s, rowStep * 0.32));
+        const badgeFontSize = Math.round(14 * s);
         ctx.font = `700 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
-        const badgeW = Math.min(contactMaxW, ctx.measureText(badgeStr).width + Math.round(18 * s));
-        const badgeH = Math.round(Math.min(30 * s, rowStep * 0.60));
+        const badgeW = Math.min(contactMaxW, ctx.measureText(badgeStr).width + Math.round(20 * s));
+        const badgeH = row4H;
 
-        drawCanvasRoundedRect(ctx, contactStartX, row4Y - Math.round(badgeH * 0.72), badgeW, badgeH, Math.round(5 * s));
-        ctx.fillStyle = cp.dividerColor;
+        drawCanvasRoundedRect(ctx, contactStartX, row4Y, badgeW, badgeH, Math.round(6 * s));
+        ctx.fillStyle = cp.badgeBg === '#eab308' || cp.badgeBg === '#f59e0b' ? 'rgba(245, 158, 11, 0.18)' : 'rgba(255, 255, 255, 0.10)';
         ctx.fill();
         ctx.strokeStyle = cp.borderColor;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.3;
         ctx.stroke();
 
         ctx.fillStyle = cp.phoneAccent;
-        ctx.fillText(badgeStr, contactStartX + Math.round(9 * s), row4Y, badgeW - Math.round(18 * s));
+        ctx.fillText(badgeStr, contactStartX + Math.round(10 * s), row4Y + Math.round(badgeH * 0.70), badgeW - Math.round(20 * s));
       }
 
       // Draw Divider 2
       ctx.beginPath();
-      ctx.moveTo(divider2X, Math.round(padY + 8 * s));
-      ctx.lineTo(divider2X, height - Math.round(padY + 8 * s));
+      ctx.moveTo(divider2X, safeTopY + Math.round(4 * s));
+      ctx.lineTo(divider2X, safeBottomY - Math.round(4 * s));
       ctx.strokeStyle = cp.dividerColor;
       ctx.lineWidth = Math.max(1.5, 2 * s);
       ctx.stroke();
 
       // -----------------------------------------------------------------------
-      // SECTION 3: QR Code & Call to Action (Centered in qrColWidth)
+      // SECTION 3: QR Code & Call to Action (Centered vertically & horizontally)
       // -----------------------------------------------------------------------
       const qrColInnerW = width - padX - divider2X;
       const qrBoxX = Math.round(divider2X + (qrColInnerW - qrBoxSize) / 2);
-      const qrBoxY = Math.round(padY + (innerH - qrBoxSize - Math.round(24 * s)) / 2);
+      const totalQrH = qrBoxSize + Math.round(24 * s);
+      const qrBoxY = Math.round(centerY - totalQrH / 2);
 
       drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, Math.round(12 * s));
       ctx.fillStyle = '#ffffff';
@@ -648,7 +678,7 @@ export const StickerModule: React.FC = () => {
       ctx.fillText(
         (stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(),
         qrBoxX + qrBoxSize / 2,
-        qrBoxY + qrBoxSize + Math.round(22 * s),
+        qrBoxY + qrBoxSize + Math.round(20 * s),
         qrColInnerW - Math.round(8 * s)
       );
       ctx.textAlign = 'left';
@@ -1034,8 +1064,8 @@ export const StickerModule: React.FC = () => {
 
         {isWide ? (
           <>
-            {/* SECTION 1: Brand & Logo (~38% width) */}
-            <div className="flex-[3.8] min-w-0 flex items-center gap-[1.8mm] pr-[1.5mm]">
+            {/* SECTION 1: Brand & Logo (~46% width) */}
+            <div className="flex-[4.6] min-w-0 flex items-center gap-[1.8mm] pr-[1.5mm]">
               {/* Logo */}
               {stickerData.showLogo && (logoBase64 || stickerData.logoUrl) && (
                 <div 
@@ -1082,8 +1112,8 @@ export const StickerModule: React.FC = () => {
             {/* Divider 1 */}
             <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
 
-            {/* SECTION 2: Contact Information (~45% width) */}
-            <div className="flex-[4.8] px-[2mm] flex flex-col justify-between min-w-0 leading-tight overflow-hidden">
+            {/* SECTION 2: Contact Information (~50% width, vertically centered) */}
+            <div className="flex-[5.0] px-[2mm] flex flex-col justify-center gap-[1.2mm] min-w-0 leading-tight overflow-hidden">
               {/* Row 1: Phone Numbers */}
               <div className="flex items-center gap-[2mm] overflow-hidden whitespace-nowrap">
                 <div className="flex items-center gap-[0.8mm] shrink-0">
@@ -1110,7 +1140,7 @@ export const StickerModule: React.FC = () => {
                 {stickerData.websiteUrl && (
                   <div className="flex items-center gap-[0.7mm] shrink-0">
                     <Globe className={`w-[2.2mm] h-[2.2mm] ${ts.accent}`} />
-                    <span className={`font-bold ${ts.accent} truncate max-w-[32mm]`}>
+                    <span className={`font-bold ${ts.accent} truncate max-w-[34mm]`}>
                       {stickerData.websiteUrl.replace(/^https?:\/\//, '')}
                     </span>
                   </div>
@@ -1136,9 +1166,9 @@ export const StickerModule: React.FC = () => {
 
               {/* Row 4: Warranty Badge */}
               {(stickerData.showWarranty || stickerData.jobTag) && (
-                <div className="flex items-center gap-[1.2mm] overflow-hidden">
-                  <div className={`inline-flex items-center gap-[0.8mm] px-[1.2mm] py-[0.2mm] rounded-[0.6mm] bg-amber-500/15 border border-amber-500/30 text-[5.5px] font-bold ${ts.accent}`}>
-                    <ShieldCheck className="w-[2mm] h-[2mm]" />
+                <div className="flex items-center gap-[1.2mm] overflow-hidden mt-[0.3mm]">
+                  <div className={`inline-flex items-center gap-[0.8mm] px-[1.4mm] py-[0.3mm] rounded-[0.8mm] bg-amber-500/20 border border-amber-500/40 text-[5.8px] font-bold ${ts.accent}`}>
+                    <ShieldCheck className="w-[2.2mm] h-[2.2mm]" />
                     <span className="truncate">
                       {stickerData.jobTag ? `${stickerData.jobTag} • ` : ''}
                       {stickerData.warrantyText}
@@ -1151,8 +1181,8 @@ export const StickerModule: React.FC = () => {
             {/* Divider 2 */}
             <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
 
-            {/* SECTION 3: QR Code (~17% width) */}
-            <div className="flex-[1.8] shrink-0 pl-[1.5mm] flex flex-col items-center justify-center leading-none">
+            {/* SECTION 3: QR Code (~16% width) */}
+            <div className="flex-[1.6] shrink-0 pl-[1.5mm] flex flex-col items-center justify-center leading-none">
               <div className={`p-[0.5mm] bg-white rounded-[1.2mm] shadow-sm border ${ts.qrBorder}`}>
                 {qrCodeDataUrl ? (
                   <img
