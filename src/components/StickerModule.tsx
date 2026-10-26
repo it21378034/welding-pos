@@ -78,11 +78,60 @@ export const StickerModule: React.FC = () => {
   const [theme, setTheme] = useState<StickerTheme>('industrial-dark');
   const [viewMode, setViewMode] = useState<ViewMode>('fit');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [logoBase64, setLogoBase64] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [selectedDocId, setSelectedDocId] = useState<string>('');
 
   const singleStickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cache logo as Base64 data URL so html2canvas never suffers CORS or tainted canvas errors
+  useEffect(() => {
+    let isSubscribed = true;
+    const cacheLogo = async () => {
+      const url = stickerData.logoUrl;
+      if (!url) {
+        if (isSubscribed) setLogoBase64('');
+        return;
+      }
+      if (url.startsWith('data:')) {
+        if (isSubscribed) setLogoBase64(url);
+        return;
+      }
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 100;
+            canvas.height = img.naturalHeight || 100;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const dataUrl = canvas.toDataURL('image/png');
+              if (isSubscribed) setLogoBase64(dataUrl);
+            } else {
+              if (isSubscribed) setLogoBase64(url);
+            }
+          } catch (_) {
+            if (isSubscribed) setLogoBase64(url);
+          }
+        };
+        img.onerror = () => {
+          if (isSubscribed) setLogoBase64(url);
+        };
+        img.src = url;
+      } catch (_) {
+        if (isSubscribed) setLogoBase64(url);
+      }
+    };
+
+    cacheLogo();
+    return () => {
+      isSubscribed = false;
+    };
+  }, [stickerData.logoUrl]);
 
   // Generate QR Code dynamically whenever website URL changes
   useEffect(() => {
@@ -187,11 +236,25 @@ export const StickerModule: React.FC = () => {
 
   // Helper to render high-res canvas from the sticker DOM element
   const generateStickerCanvas = async (): Promise<HTMLCanvasElement | null> => {
-    if (!singleStickerRef.current) return null;
-    return await html2canvas(singleStickerRef.current, {
-      scale: 3.125, // 150mm * 3.125 = 1772px, 30mm * 3.125 = 354px (Exact 300 DPI)
+    // 1. Try dedicated permanent export ref
+    let target = singleStickerRef.current;
+    // 2. Try ID lookup
+    if (!target) {
+      target = document.getElementById('permanent-sticker-export-node') as HTMLDivElement;
+    }
+    // 3. Fallback to any mounted sticker container in the DOM
+    if (!target) {
+      target = document.querySelector('.sticker-render-root') as HTMLDivElement;
+    }
+    if (!target) {
+      console.error('Sticker DOM node not found anywhere in document');
+      return null;
+    }
+
+    return await html2canvas(target, {
+      scale: 3, // 150mm * 3 = 1700px, 30mm * 3 = 340px (High-res 300 DPI)
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: null,
       logging: false,
     });
@@ -202,7 +265,7 @@ export const StickerModule: React.FC = () => {
     setIsExporting(true);
     try {
       const canvas = await generateStickerCanvas();
-      if (!canvas) throw new Error('Sticker canvas element not found');
+      if (!canvas) throw new Error('Sticker canvas element not available');
 
       const imgData = canvas.toDataURL('image/png');
       // Format [30, 150] in landscape gives exactly 150mm width x 30mm height
@@ -217,8 +280,9 @@ export const StickerModule: React.FC = () => {
       doc.save(`${cleanName}-sticker-15x3cm.pdf`);
       showToast('15cm × 3cm Single Sticker PDF downloaded!', 'success');
     } catch (err) {
-      console.error(err);
-      showToast('Failed to generate sticker PDF', 'error');
+      console.error('Error generating single PDF:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      showToast(`Failed to generate sticker PDF: ${msg}`, 'error');
     } finally {
       setIsExporting(false);
     }
@@ -229,7 +293,7 @@ export const StickerModule: React.FC = () => {
     setIsExporting(true);
     try {
       const canvas = await generateStickerCanvas();
-      if (!canvas) throw new Error('Sticker canvas element not found');
+      if (!canvas) throw new Error('Sticker canvas element not available');
 
       const imgData = canvas.toDataURL('image/png');
       const doc = new jsPDF({
@@ -258,7 +322,11 @@ export const StickerModule: React.FC = () => {
         // Dashed cutting guide
         doc.setDrawColor(180, 185, 195);
         doc.setLineWidth(0.2);
-        doc.setLineDashPattern([2, 2], 0);
+        try {
+          doc.setLineDashPattern([2, 2], 0);
+        } catch (_) {
+          // Fallback if not supported
+        }
         doc.rect(startX, curY, stickerW, stickerH);
       }
 
@@ -266,8 +334,9 @@ export const StickerModule: React.FC = () => {
       doc.save(`${cleanName}-stickers-sheet-a4.pdf`);
       showToast('A4 Sticker Sheet PDF (8 Stickers) downloaded!', 'success');
     } catch (err) {
-      console.error(err);
-      showToast('Failed to generate A4 sheet PDF', 'error');
+      console.error('Error generating sheet PDF:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      showToast(`Failed to generate A4 sheet PDF: ${msg}`, 'error');
     } finally {
       setIsExporting(false);
     }
@@ -278,7 +347,7 @@ export const StickerModule: React.FC = () => {
     setIsExporting(true);
     try {
       const canvas = await generateStickerCanvas();
-      if (!canvas) throw new Error('Sticker canvas element not found');
+      if (!canvas) throw new Error('Sticker canvas element not available');
 
       const link = document.createElement('a');
       const cleanName = (stickerData.brandName || 'sticker').toLowerCase().replace(/[^a-z0-9]/g, '-');
@@ -407,7 +476,7 @@ export const StickerModule: React.FC = () => {
         height: '30mm',
         boxSizing: 'border-box',
       }}
-      className={`relative select-none flex items-stretch p-[2.2mm] rounded-[1.5mm] overflow-hidden ${ts.wrapper}`}
+      className={`sticker-render-root relative select-none flex items-stretch p-[2.2mm] rounded-[1.5mm] overflow-hidden ${ts.wrapper}`}
     >
       {/* Optional Top Hazard Accent Stripe */}
       {ts.hazard && (
@@ -422,10 +491,10 @@ export const StickerModule: React.FC = () => {
       {/* SECTION 1: Brand & Logo (Left ~48mm) */}
       <div className="w-[49mm] shrink-0 flex items-center gap-[2mm] pr-[1.8mm]">
         {/* Logo */}
-        {stickerData.showLogo && stickerData.logoUrl && (
+        {stickerData.showLogo && (logoBase64 || stickerData.logoUrl) && (
           <div className="w-[20mm] h-[20mm] shrink-0 rounded-full bg-slate-900/60 p-[0.4mm] border border-amber-500/40 flex items-center justify-center overflow-hidden shadow-inner">
             <img
-              src={stickerData.logoUrl}
+              src={logoBase64 || stickerData.logoUrl}
               alt="Logo"
               className="w-full h-full object-contain"
               crossOrigin="anonymous"
@@ -589,6 +658,26 @@ export const StickerModule: React.FC = () => {
             {renderStickerNode(false)}
           </div>
         )}
+      </div>
+
+      {/* Permanent, Always-Mounted Hidden Render Node for Export (Guarantees Ref is never null in ANY view mode) */}
+      <div 
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '0',
+          width: '150mm',
+          height: '30mm',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          zIndex: -9999,
+          opacity: 1,
+        }}
+      >
+        <div ref={singleStickerRef} id="permanent-sticker-export-node">
+          {renderStickerNode(false)}
+        </div>
       </div>
 
       {/* Page Header */}
@@ -1061,7 +1150,6 @@ export const StickerModule: React.FC = () => {
                   {/* The Live Rendered Sticker Container */}
                   <div className="flex items-center justify-center p-3 rounded-2xl bg-slate-950/80 border border-slate-800 shadow-inner overflow-x-auto">
                     <div 
-                      ref={singleStickerRef}
                       style={{
                         transform: viewMode === 'fit' ? 'scale(1.25)' : 'none',
                         transformOrigin: 'center center',
