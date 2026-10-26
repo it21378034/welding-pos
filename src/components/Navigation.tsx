@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ShoppingCart,
+  QrCode,
   LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
     { id: 'customers', label: t('customers'), icon: Users },
     { id: 'catalog', label: t('catalog'), icon: Wrench },
     { id: 'purchase-lists', label: 'Purchase Lists', icon: ShoppingCart },
+    { id: 'stickers', label: t('stickers') || 'Make Sticker', icon: QrCode },
     { id: 'reports', label: t('reports'), icon: BarChart3 },
     { id: 'settings', label: t('settings'), icon: SettingsIcon },
   ];

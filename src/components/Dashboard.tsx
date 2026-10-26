@@ -8,6 +8,7 @@ import {
   ReceiptText, 
   Users, 
   ChevronRight,
+  QrCode,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -67,6 +68,14 @@ export const Dashboard: React.FC = () => {
           >
             <ReceiptText className="w-4 h-4 text-amber-400" />
             <span>{t('newInvoice')}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('stickers')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-semibold text-sm border border-amber-500/30 transition active:scale-95"
+            title="Design & print branded 15cm × 3cm stickers with website QR code"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>{t('makeSticker') || 'Make Sticker'}</span>
           </button>
         </div>
       </div>

@@ -131,6 +131,9 @@ export const translations: Record<Language, Record<string, string>> = {
     bankDetails: 'Bank Details for Transfer',
     backupDatabase: 'Backup Database (JSON)',
     restoreDatabase: 'Restore Database',
+    stickers: 'Make Sticker',
+    makeSticker: 'Make Sticker',
+    stickerMaker: 'Product Sticker & Badge Maker',
 
     // Sinhala translations switch
   },
@@ -264,5 +267,8 @@ export const translations: Record<Language, Record<string, string>> = {
     bankDetails: 'බැංකු ගිණුම් විස්තර',
     backupDatabase: 'දත්ත සුරක්ෂිත පිටපතක් ලබාගන්න (JSON)',
     restoreDatabase: 'දත්ත නැවත පිහිටුවන්න',
+    stickers: 'ස්ටිකර් සාදන්න',
+    makeSticker: 'ස්ටිකර් සාදන්න',
+    stickerMaker: 'නිෂ්පාදන ස්ටිකර් නිර්මාණය (15cm × 3cm)',
   },
 };

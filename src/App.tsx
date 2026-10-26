@@ -10,6 +10,7 @@ import { ReportsModule } from './components/ReportsModule';
 import { SettingsModule } from './components/SettingsModule';
 import { PrintView } from './components/PrintView';
 import { PurchaseListModule } from './components/PurchaseListModule';
+import { StickerModule } from './components/StickerModule';
 import { LoginScreen } from './components/LoginScreen';
 import { ToastProvider } from './components/Toast';
 import { Loader2 } from 'lucide-react';
@@ -52,6 +53,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'customers' && <CustomerModule />}
           {activeTab === 'catalog' && <CatalogModule />}
           {activeTab === 'purchase-lists' && <PurchaseListModule />}
+          {activeTab === 'stickers' && <StickerModule />}
           {activeTab === 'reports' && <ReportsModule />}
           {activeTab === 'settings' && <SettingsModule />}
         </main>

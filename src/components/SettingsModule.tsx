@@ -18,7 +18,9 @@ import {
   Check,
   AlertCircle,
   X,
-  Edit2
+  Edit2,
+  QrCode,
+  Globe
 } from 'lucide-react';
 import { saveGeminiApiKey } from '../lib/geminiVisionService';
 import type { Role } from '../types';
@@ -30,6 +32,7 @@ export const SettingsModule: React.FC = () => {
     updateSettings, 
     exportDatabase, 
     importDatabase, 
+    setActiveTab,
     t,
     users,
     addUser,
@@ -262,6 +265,43 @@ export const SettingsModule: React.FC = () => {
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-amber-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Company Website (Used for QR Codes)</label>
+            <div className="relative">
+              <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                value={formData.website || ''}
+                onChange={e => setFormData({ ...formData, website: e.target.value })}
+                placeholder="www.vasanthaironworks.com"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-amber-500 font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Make Sticker Quick Banner */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-amber-500 text-slate-950 font-bold shrink-0">
+                <QrCode className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-100">Workshop Branded Stickers (15 cm × 3 cm)</p>
+                <p className="text-xs text-slate-400">
+                  Generate metal product badges & stickers with your logo, contact numbers, and website QR code.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('stickers')}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md shrink-0 flex items-center justify-center gap-1.5"
+            >
+              <span>Open Make Sticker</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
