@@ -391,6 +391,7 @@ export const StickerModule: React.FC = () => {
   };
 
   // Direct native 2D Canvas rendering — dynamically scales with custom width & height
+  // Direct native 2D Canvas rendering — perfectly proportional & aligned for ANY custom size
   const generateStickerCanvas = async (): Promise<HTMLCanvasElement | null> => {
     const canvas = document.createElement('canvas');
     const width = Math.round(stickerData.widthCm * 10 * 11.811);
@@ -400,7 +401,10 @@ export const StickerModule: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const s = Math.max(0.55, Math.min(2.0, height / 354)); // vertical scale relative to standard 3cm
+    // Proportional scale factor relative to standard 15cm x 3cm banner
+    const sy = height / 354;
+    const sx = width / 1772;
+    const s = Math.max(0.45, Math.min(2.0, Math.min(sy, sx * 1.35)));
 
     const [logoImg, qrImg] = await Promise.all([
       stickerData.showLogo && (logoBase64 || stickerData.logoUrl)
@@ -449,138 +453,339 @@ export const StickerModule: React.FC = () => {
       ctx.restore();
     }
 
-    // 2. SECTION 1: Brand & Logo
-    const logoSize = Math.round(Math.min(height - 40 * s, 220 * s));
-    const logoX = Math.round(30 * s);
-    const logoY = Math.round((height - logoSize) / 2);
-    let textStartX = Math.round(35 * s);
+    const padX = Math.round(20 * s);
+    const padY = Math.round(16 * s);
+    const innerH = height - 2 * padY;
+    const aspectRatio = width / height;
 
-    if (logoImg) {
-      ctx.save();
+    // =========================================================================
+    // LAYOUT ENGINE: WIDE BANNER (Aspect Ratio >= 1.7, Standard Workshop Format)
+    // =========================================================================
+    if (aspectRatio >= 1.7) {
+      // 1. COLUMN 3: QR Code (Right side)
+      // Height-constrained QR square box with prompt below
+      const qrBoxSize = Math.round(Math.max(36 * s, Math.min(innerH - 28 * s, width * 0.18)));
+      const qrColWidth = qrBoxSize + Math.round(32 * s);
+      const divider2X = width - padX - qrColWidth;
+
+      // 2. COLUMN 1 & COLUMN 2: Proportional dynamic split
+      const availableW = divider2X - padX - Math.round(24 * s);
+      // Give Brand 40% and Contact 60% of available middle width
+      const col1Width = Math.round(availableW * 0.40);
+      const divider1X = padX + col1Width;
+
+      // -----------------------------------------------------------------------
+      // SECTION 1: Brand & Logo (Strictly bounded within [padX, divider1X])
+      // -----------------------------------------------------------------------
+      let brandTextX = padX;
+      if (logoImg) {
+        const logoSize = Math.round(Math.min(innerH - 8 * s, col1Width * 0.38, 220 * s));
+        const logoX = padX + Math.round(4 * s);
+        const logoY = padY + Math.round((innerH - logoSize) / 2);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fillStyle = theme === 'monochrome-clean' ? '#f1f5f9' : 'rgba(2, 6, 23, 0.7)';
+        ctx.fill();
+        ctx.strokeStyle = cp.dividerColor;
+        ctx.lineWidth = Math.max(1.5, 2.5 * s);
+        ctx.stroke();
+        ctx.clip();
+        ctx.drawImage(logoImg, logoX + 6 * s, logoY + 6 * s, logoSize - 12 * s, logoSize - 12 * s);
+        ctx.restore();
+
+        brandTextX = logoX + logoSize + Math.round(14 * s);
+      } else {
+        brandTextX = padX + Math.round(8 * s);
+      }
+
+      // Maximum available width for brand text — strictly guarantees no crossing divider 1!
+      const brandMaxW = Math.max(40, divider1X - brandTextX - Math.round(14 * s));
+
+      // Badge Label (e.g. FABRICATED & INSTALLED BY)
+      if (stickerData.badgeText) {
+        ctx.font = `900 ${Math.round(12 * s)}px system-ui, -apple-system, sans-serif`;
+        const badgeW = Math.min(brandMaxW, ctx.measureText(stickerData.badgeText.toUpperCase()).width + 16 * s);
+        const badgeH = Math.round(24 * s);
+        drawCanvasRoundedRect(ctx, brandTextX, Math.round(padY + 12 * s), badgeW, badgeH, Math.round(5 * s));
+        ctx.fillStyle = cp.badgeBg;
+        ctx.fill();
+
+        ctx.fillStyle = cp.badgeText;
+        ctx.fillText(stickerData.badgeText.toUpperCase(), brandTextX + 7 * s, Math.round(padY + 12 * s + badgeH * 0.7), badgeW - 14 * s);
+      }
+
+      // Company Name with dynamic font auto-scaler
+      let brandFontSize = Math.round(Math.min(26 * s, innerH * 0.16));
+      ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      while (ctx.measureText(stickerData.brandName.toUpperCase()).width > brandMaxW && brandFontSize > Math.round(11 * s)) {
+        brandFontSize -= 1;
+        ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      }
+      ctx.fillStyle = cp.titleColor;
+      const nameY = stickerData.badgeText ? Math.round(padY + innerH * 0.44) : Math.round(padY + innerH * 0.38);
+      ctx.fillText(stickerData.brandName.toUpperCase(), brandTextX, nameY, brandMaxW);
+
+      // Tagline
+      if (stickerData.tagline) {
+        let tagFontSize = Math.round(Math.min(14 * s, innerH * 0.09));
+        ctx.font = `500 ${tagFontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = cp.subColor;
+        const tagY = stickerData.badgeText ? Math.round(padY + innerH * 0.65) : Math.round(padY + innerH * 0.58);
+        ctx.fillText(stickerData.tagline, brandTextX, tagY, brandMaxW);
+      }
+
+      // Draw Divider 1
       ctx.beginPath();
-      ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 3, 0, Math.PI * 2);
-      ctx.fillStyle = theme === 'monochrome-clean' ? '#f1f5f9' : 'rgba(2, 6, 23, 0.7)';
-      ctx.fill();
+      ctx.moveTo(divider1X, Math.round(padY + 8 * s));
+      ctx.lineTo(divider1X, height - Math.round(padY + 8 * s));
       ctx.strokeStyle = cp.dividerColor;
-      ctx.lineWidth = Math.max(2, 3 * s);
+      ctx.lineWidth = Math.max(1.5, 2 * s);
       ctx.stroke();
-      ctx.clip();
-      ctx.drawImage(logoImg, logoX + 8 * s, logoY + 8 * s, logoSize - 16 * s, logoSize - 16 * s);
-      ctx.restore();
 
-      textStartX = logoX + logoSize + Math.round(20 * s);
-    }
+      // -----------------------------------------------------------------------
+      // SECTION 2: Contact Information (Strictly bounded [divider1X, divider2X])
+      // -----------------------------------------------------------------------
+      const contactStartX = divider1X + Math.round(18 * s);
+      const contactEndX = divider2X - Math.round(16 * s);
+      const contactMaxW = Math.max(80, contactEndX - contactStartX);
 
-    // Badge
-    if (stickerData.badgeText) {
-      ctx.font = `900 ${Math.round(13 * s)}px system-ui, -apple-system, sans-serif`;
-      const badgeW = Math.min(Math.round(280 * s), ctx.measureText(stickerData.badgeText.toUpperCase()).width + 18 * s);
-      drawCanvasRoundedRect(ctx, textStartX, Math.round(55 * s), badgeW, Math.round(26 * s), Math.round(6 * s));
-      ctx.fillStyle = cp.badgeBg;
-      ctx.fill();
+      const hasWarrantyRow = stickerData.showWarranty || stickerData.jobTag;
+      const numRows = hasWarrantyRow ? 4 : 3;
+      const rowStep = innerH / (numRows + 0.35);
 
-      ctx.fillStyle = cp.badgeText;
-      ctx.fillText(stickerData.badgeText.toUpperCase(), textStartX + 8 * s, Math.round(73 * s));
-    }
+      // Row 1: Hotlines
+      const row1Y = Math.round(padY + rowStep * 0.85);
+      const phoneFontSize = Math.round(Math.min(22 * s, rowStep * 0.44));
+      ctx.font = `800 ${phoneFontSize}px monospace, system-ui`;
+      ctx.fillStyle = cp.phoneAccent;
+      ctx.fillText('📞', contactStartX, row1Y);
+      const phoneIconW = ctx.measureText('📞 ').width;
 
-    // Company Name
-    ctx.fillStyle = cp.titleColor;
-    ctx.font = `900 ${Math.round(26 * s)}px system-ui, -apple-system, sans-serif`;
-    const nameY = stickerData.badgeText ? Math.round(118 * s) : Math.round(95 * s);
-    ctx.fillText(stickerData.brandName.toUpperCase(), textStartX, nameY, Math.round(width * 0.32));
+      ctx.fillStyle = cp.phoneColor;
+      const phoneText = `${stickerData.phone1}${stickerData.phone2 ? `   |   ${stickerData.phone2}` : ''}`;
+      ctx.fillText(phoneText, contactStartX + phoneIconW, row1Y, contactMaxW - phoneIconW);
 
-    // Tagline
-    if (stickerData.tagline) {
-      ctx.fillStyle = cp.subColor;
-      ctx.font = `500 ${Math.round(15 * s)}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(stickerData.tagline, textStartX, Math.round(168 * s), Math.round(width * 0.32));
-    }
+      // Row 2: Website & Email
+      const row2Y = Math.round(padY + rowStep * 1.8);
+      const webEmailFontSize = Math.round(Math.min(18 * s, rowStep * 0.36));
+      ctx.font = `700 ${webEmailFontSize}px system-ui, -apple-system, sans-serif`;
 
-    // Divider 1
-    const divider1X = Math.min(Math.round(width * 0.33), textStartX + Math.round(290 * s));
-    ctx.beginPath();
-    ctx.moveTo(divider1X, Math.round(25 * s));
-    ctx.lineTo(divider1X, height - Math.round(25 * s));
-    ctx.strokeStyle = cp.dividerColor;
-    ctx.lineWidth = Math.max(1.5, 2.5 * s);
-    ctx.stroke();
+      let curX = contactStartX;
+      if (stickerData.websiteUrl) {
+        ctx.fillStyle = cp.webColor;
+        const webDisplay = '🌐 ' + stickerData.websiteUrl.replace(/^https?:\/\//, '');
+        const maxWebW = stickerData.email ? Math.round(contactMaxW * 0.54) : contactMaxW;
+        ctx.fillText(webDisplay, curX, row2Y, maxWebW);
+        const actualWebW = Math.min(maxWebW, ctx.measureText(webDisplay).width);
+        curX += actualWebW + Math.round(18 * s);
+      }
 
-    // 3. SECTION 3: QR Code & Call to Action (Right)
-    const qrBoxSize = Math.round(Math.min(height - 40 * s, 226 * s));
-    const qrBoxX = width - qrBoxSize - Math.round(30 * s);
-    const qrBoxY = Math.round((height - qrBoxSize - 25 * s) / 2);
+      if (stickerData.email && curX < contactEndX - Math.round(40 * s)) {
+        ctx.fillStyle = cp.contactColor;
+        const maxEmailW = contactEndX - curX;
+        ctx.fillText('✉ ' + stickerData.email, curX, row2Y, maxEmailW);
+      }
 
-    drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, Math.round(14 * s));
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = cp.qrBoxBorder;
-    ctx.lineWidth = Math.max(1.5, 2 * s);
-    ctx.stroke();
-
-    if (qrImg) {
-      ctx.drawImage(qrImg, qrBoxX + 10 * s, qrBoxY + 10 * s, qrBoxSize - 20 * s, qrBoxSize - 20 * s);
-    }
-
-    ctx.font = `900 ${Math.round(16 * s)}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = cp.qrLabelColor;
-    ctx.textAlign = 'center';
-    ctx.fillText((stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(), qrBoxX + qrBoxSize / 2, qrBoxY + qrBoxSize + Math.round(24 * s));
-    ctx.textAlign = 'left';
-
-    // Divider 2
-    const divider2X = qrBoxX - Math.round(25 * s);
-    ctx.beginPath();
-    ctx.moveTo(divider2X, Math.round(25 * s));
-    ctx.lineTo(divider2X, height - Math.round(25 * s));
-    ctx.strokeStyle = cp.dividerColor;
-    ctx.lineWidth = Math.max(1.5, 2.5 * s);
-    ctx.stroke();
-
-    // 4. SECTION 2: Contact Information (Center)
-    const contactStartX = divider1X + Math.round(22 * s);
-    const contactMaxW = divider2X - contactStartX - Math.round(15 * s);
-
-    // Row 1: Hotlines
-    ctx.font = `800 ${Math.round(24 * s)}px monospace, system-ui`;
-    ctx.fillStyle = cp.phoneAccent;
-    ctx.fillText('📞', contactStartX, Math.round(75 * s));
-    ctx.fillStyle = cp.phoneColor;
-    const phoneText = `${stickerData.phone1}${stickerData.phone2 ? `   |   ${stickerData.phone2}` : ''}`;
-    ctx.fillText(phoneText, contactStartX + 32 * s, Math.round(75 * s), contactMaxW - 35 * s);
-
-    // Row 2: Website & Email
-    ctx.font = `700 ${Math.round(19 * s)}px system-ui, -apple-system, sans-serif`;
-    let curX = contactStartX;
-    if (stickerData.websiteUrl) {
-      ctx.fillStyle = cp.webColor;
-      const webDisplay = '🌐 ' + stickerData.websiteUrl.replace(/^https?:\/\//, '');
-      ctx.fillText(webDisplay, curX, Math.round(135 * s));
-      curX += ctx.measureText(webDisplay).width + 25 * s;
-    }
-    if (stickerData.email && curX < divider2X - 100 * s) {
+      // Row 3: Address
+      const row3Y = Math.round(padY + rowStep * 2.7);
+      const addrFontSize = Math.round(Math.min(16 * s, rowStep * 0.33));
+      ctx.font = `500 ${addrFontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = cp.contactColor;
-      ctx.fillText('✉ ' + stickerData.email, curX, Math.round(135 * s), divider2X - curX - 15 * s);
-    }
+      ctx.fillText('📍 ' + stickerData.address, contactStartX, row3Y, contactMaxW);
 
-    // Row 3: Address
-    ctx.font = `500 ${Math.round(18 * s)}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = cp.contactColor;
-    ctx.fillText('📍 ' + stickerData.address, contactStartX, Math.round(195 * s), contactMaxW);
+      // Row 4: Warranty or Job Tag
+      if (hasWarrantyRow) {
+        const row4Y = Math.round(padY + rowStep * 3.55);
+        const badgeStr = `🛡 ${stickerData.jobTag ? `${stickerData.jobTag}  •  ` : ''}${stickerData.warrantyText}`;
+        const badgeFontSize = Math.round(Math.min(15 * s, rowStep * 0.32));
+        ctx.font = `700 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
+        const badgeW = Math.min(contactMaxW, ctx.measureText(badgeStr).width + Math.round(18 * s));
+        const badgeH = Math.round(Math.min(30 * s, rowStep * 0.60));
 
-    // Row 4: Warranty or Job Tag
-    if (stickerData.showWarranty || stickerData.jobTag) {
-      const badgeStr = `🛡 ${stickerData.jobTag ? `${stickerData.jobTag}  •  ` : ''}${stickerData.warrantyText}`;
-      ctx.font = `700 ${Math.round(16 * s)}px system-ui, -apple-system, sans-serif`;
-      const tagW = Math.min(contactMaxW, ctx.measureText(badgeStr).width + 22 * s);
-      drawCanvasRoundedRect(ctx, contactStartX, Math.round(235 * s), tagW, Math.round(32 * s), Math.round(6 * s));
-      ctx.fillStyle = cp.dividerColor;
+        drawCanvasRoundedRect(ctx, contactStartX, row4Y - Math.round(badgeH * 0.72), badgeW, badgeH, Math.round(5 * s));
+        ctx.fillStyle = cp.dividerColor;
+        ctx.fill();
+        ctx.strokeStyle = cp.borderColor;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.fillStyle = cp.phoneAccent;
+        ctx.fillText(badgeStr, contactStartX + Math.round(9 * s), row4Y, badgeW - Math.round(18 * s));
+      }
+
+      // Draw Divider 2
+      ctx.beginPath();
+      ctx.moveTo(divider2X, Math.round(padY + 8 * s));
+      ctx.lineTo(divider2X, height - Math.round(padY + 8 * s));
+      ctx.strokeStyle = cp.dividerColor;
+      ctx.lineWidth = Math.max(1.5, 2 * s);
+      ctx.stroke();
+
+      // -----------------------------------------------------------------------
+      // SECTION 3: QR Code & Call to Action (Centered in qrColWidth)
+      // -----------------------------------------------------------------------
+      const qrColInnerW = width - padX - divider2X;
+      const qrBoxX = Math.round(divider2X + (qrColInnerW - qrBoxSize) / 2);
+      const qrBoxY = Math.round(padY + (innerH - qrBoxSize - Math.round(24 * s)) / 2);
+
+      drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, Math.round(12 * s));
+      ctx.fillStyle = '#ffffff';
       ctx.fill();
-      ctx.strokeStyle = cp.borderColor;
+      ctx.strokeStyle = cp.qrBoxBorder;
+      ctx.lineWidth = Math.max(1.5, 2 * s);
+      ctx.stroke();
+
+      if (qrImg) {
+        const qrPad = Math.round(8 * s);
+        ctx.drawImage(qrImg, qrBoxX + qrPad, qrBoxY + qrPad, qrBoxSize - 2 * qrPad, qrBoxSize - 2 * qrPad);
+      }
+
+      ctx.font = `900 ${Math.round(Math.min(15 * s, qrColInnerW * 0.12))}px system-ui, -apple-system, sans-serif`;
+      ctx.fillStyle = cp.qrLabelColor;
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        (stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(),
+        qrBoxX + qrBoxSize / 2,
+        qrBoxY + qrBoxSize + Math.round(22 * s),
+        qrColInnerW - Math.round(8 * s)
+      );
+      ctx.textAlign = 'left';
+
+    } else {
+      // =======================================================================
+      // LAYOUT ENGINE: COMPACT / SQUARISH (Aspect Ratio < 1.7, e.g. 6cm x 6cm)
+      // =======================================================================
+      const topH = Math.round(height * 0.32);
+      const midDividerY = padY + topH;
+
+      // Top Header: Logo + Brand + Tagline
+      let topTextX = padX + Math.round(8 * s);
+      if (logoImg) {
+        const logoSize = Math.round(Math.min(topH - 8 * s, 180 * s));
+        const logoX = padX + Math.round(6 * s);
+        const logoY = padY + Math.round((topH - logoSize) / 2);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fillStyle = theme === 'monochrome-clean' ? '#f1f5f9' : 'rgba(2, 6, 23, 0.7)';
+        ctx.fill();
+        ctx.strokeStyle = cp.dividerColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.clip();
+        ctx.drawImage(logoImg, logoX + 4 * s, logoY + 4 * s, logoSize - 8 * s, logoSize - 8 * s);
+        ctx.restore();
+
+        topTextX = logoX + logoSize + Math.round(14 * s);
+      }
+
+      const topMaxW = width - padX - topTextX - Math.round(10 * s);
+
+      if (stickerData.badgeText) {
+        ctx.font = `900 ${Math.round(11 * s)}px system-ui, -apple-system, sans-serif`;
+        const badgeW = Math.min(topMaxW, ctx.measureText(stickerData.badgeText.toUpperCase()).width + 14 * s);
+        drawCanvasRoundedRect(ctx, topTextX, padY + Math.round(4 * s), badgeW, Math.round(20 * s), Math.round(4 * s));
+        ctx.fillStyle = cp.badgeBg;
+        ctx.fill();
+        ctx.fillStyle = cp.badgeText;
+        ctx.fillText(stickerData.badgeText.toUpperCase(), topTextX + 6 * s, padY + Math.round(18 * s), badgeW - 12 * s);
+      }
+
+      ctx.fillStyle = cp.titleColor;
+      let brandFontSize = Math.round(20 * s);
+      ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      while (ctx.measureText(stickerData.brandName.toUpperCase()).width > topMaxW && brandFontSize > Math.round(10 * s)) {
+        brandFontSize -= 1;
+        ctx.font = `900 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+      }
+      const topNameY = stickerData.badgeText ? padY + Math.round(44 * s) : padY + Math.round(28 * s);
+      ctx.fillText(stickerData.brandName.toUpperCase(), topTextX, topNameY, topMaxW);
+
+      if (stickerData.tagline) {
+        ctx.fillStyle = cp.subColor;
+        ctx.font = `500 ${Math.round(12 * s)}px system-ui, -apple-system, sans-serif`;
+        ctx.fillText(stickerData.tagline, topTextX, topNameY + Math.round(20 * s), topMaxW);
+      }
+
+      // Horizontal Divider
+      ctx.beginPath();
+      ctx.moveTo(padX + Math.round(6 * s), midDividerY);
+      ctx.lineTo(width - padX - Math.round(6 * s), midDividerY);
+      ctx.strokeStyle = cp.dividerColor;
+      ctx.lineWidth = Math.max(1.5, 2 * s);
+      ctx.stroke();
+
+      // Bottom Area Split: Left = Contact Info (~62%), Right = QR Code (~38%)
+      const bottomY = midDividerY + Math.round(14 * s);
+      const bottomH = height - padY - bottomY;
+      const qrColW = Math.round((width - 2 * padX) * 0.38);
+      const vertDividerX = width - padX - qrColW;
+      const contactStartX = padX + Math.round(8 * s);
+      const contactMaxW = vertDividerX - contactStartX - Math.round(14 * s);
+
+      // Contact Rows
+      const bRowStep = bottomH / 4.2;
+      ctx.font = `800 ${Math.round(Math.min(18 * s, bRowStep * 0.42))}px monospace, system-ui`;
+      ctx.fillStyle = cp.phoneColor;
+      ctx.fillText(`📞 ${stickerData.phone1}`, contactStartX, bottomY + bRowStep * 0.8, contactMaxW);
+
+      if (stickerData.phone2) {
+        ctx.fillText(`📞 ${stickerData.phone2}`, contactStartX, bottomY + bRowStep * 1.6, contactMaxW);
+      } else if (stickerData.websiteUrl) {
+        ctx.font = `700 ${Math.round(Math.min(15 * s, bRowStep * 0.35))}px system-ui`;
+        ctx.fillStyle = cp.webColor;
+        ctx.fillText(`🌐 ${stickerData.websiteUrl.replace(/^https?:\/\//, '')}`, contactStartX, bottomY + bRowStep * 1.6, contactMaxW);
+      }
+
+      ctx.font = `500 ${Math.round(Math.min(14 * s, bRowStep * 0.33))}px system-ui`;
+      ctx.fillStyle = cp.contactColor;
+      ctx.fillText(`📍 ${stickerData.address}`, contactStartX, bottomY + bRowStep * 2.5, contactMaxW);
+
+      if (stickerData.showWarranty || stickerData.jobTag) {
+        const badgeStr = `🛡 ${stickerData.warrantyText}`;
+        ctx.font = `700 ${Math.round(Math.min(13 * s, bRowStep * 0.30))}px system-ui`;
+        ctx.fillStyle = cp.phoneAccent;
+        ctx.fillText(badgeStr, contactStartX, bottomY + bRowStep * 3.4, contactMaxW);
+      }
+
+      // Vertical Divider in bottom section
+      ctx.beginPath();
+      ctx.moveTo(vertDividerX, midDividerY + Math.round(6 * s));
+      ctx.lineTo(vertDividerX, height - padY - Math.round(6 * s));
+      ctx.strokeStyle = cp.dividerColor;
+      ctx.lineWidth = Math.max(1.5, 2 * s);
+      ctx.stroke();
+
+      // QR Code in bottom right
+      const qrBoxSize = Math.round(Math.min(bottomH - 26 * s, qrColW - 16 * s));
+      const qrBoxX = Math.round(vertDividerX + (qrColW - qrBoxSize) / 2);
+      const qrBoxY = Math.round(bottomY + (bottomH - qrBoxSize - 22 * s) / 2);
+
+      drawCanvasRoundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, Math.round(10 * s));
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = cp.qrBoxBorder;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.fillStyle = cp.phoneAccent;
-      ctx.fillText(badgeStr, contactStartX + 10 * s, Math.round(257 * s), tagW - 20 * s);
+      if (qrImg) {
+        const qrPad = Math.round(6 * s);
+        ctx.drawImage(qrImg, qrBoxX + qrPad, qrBoxY + qrPad, qrBoxSize - 2 * qrPad, qrBoxSize - 2 * qrPad);
+      }
+
+      ctx.font = `900 ${Math.round(13 * s)}px system-ui, -apple-system, sans-serif`;
+      ctx.fillStyle = cp.qrLabelColor;
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        (stickerData.qrPrompt || 'SCAN TO VISIT').toUpperCase(),
+        qrBoxX + qrBoxSize / 2,
+        qrBoxY + qrBoxSize + Math.round(18 * s),
+        qrColW - Math.round(8 * s)
+      );
+      ctx.textAlign = 'left';
     }
 
     return canvas;
@@ -801,174 +1006,228 @@ export const StickerModule: React.FC = () => {
   const ts = getThemeStyles();
 
   // Single sticker component rendered with customized physical dimensions
-  const renderStickerNode = (_isSheetInstance = false) => (
-    <div
-      style={{
-        width: `${stickerData.widthCm}cm`,
-        height: `${stickerData.heightCm}cm`,
-        boxSizing: 'border-box',
-      }}
-      className={`sticker-render-root relative select-none flex items-stretch p-[2.2mm] rounded-[1.5mm] overflow-hidden ${ts.wrapper}`}
-    >
-      {/* Optional Top Hazard Accent Stripe */}
-      {ts.hazard && (
-        <div 
-          className="absolute top-0 left-0 right-0 h-[1.2mm]"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3mm, #000 3mm, #000 6mm)'
-          }}
-        />
-      )}
+  const renderStickerNode = (_isSheetInstance = false) => {
+    const isWide = stickerData.widthCm / stickerData.heightCm >= 1.7;
+    const hMm = stickerData.heightCm * 10;
+    const wMm = stickerData.widthCm * 10;
+    const logoSizeMm = Math.max(8, Math.min(hMm - 5, 22));
+    const qrSizeMm = Math.max(9, Math.min(hMm - 6.5, wMm * 0.19, 23));
 
-      {/* SECTION 1: Brand & Logo (Left ~48mm) */}
-      <div className="w-[49mm] shrink-0 flex items-center gap-[2mm] pr-[1.8mm]">
-        {/* Logo */}
-        {stickerData.showLogo && (logoBase64 || stickerData.logoUrl) && (
-          <div className="w-[20mm] h-[20mm] shrink-0 rounded-full bg-slate-900/60 p-[0.4mm] border border-amber-500/40 flex items-center justify-center overflow-hidden shadow-inner">
-            <img
-              src={logoBase64 || stickerData.logoUrl}
-              alt="Logo"
-              className="w-full h-full object-contain"
-              crossOrigin="anonymous"
-            />
+    return (
+      <div
+        style={{
+          width: `${stickerData.widthCm}cm`,
+          height: `${stickerData.heightCm}cm`,
+          boxSizing: 'border-box',
+        }}
+        className={`sticker-render-root relative select-none flex items-stretch p-[2mm] rounded-[1.5mm] overflow-hidden ${ts.wrapper}`}
+      >
+        {/* Optional Top Hazard Accent Stripe */}
+        {ts.hazard && (
+          <div 
+            className="absolute top-0 left-0 right-0 h-[1.2mm]"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3mm, #000 3mm, #000 6mm)'
+            }}
+          />
+        )}
+
+        {isWide ? (
+          <>
+            {/* SECTION 1: Brand & Logo (~38% width) */}
+            <div className="flex-[3.8] min-w-0 flex items-center gap-[1.8mm] pr-[1.5mm]">
+              {/* Logo */}
+              {stickerData.showLogo && (logoBase64 || stickerData.logoUrl) && (
+                <div 
+                  style={{ width: `${logoSizeMm}mm`, height: `${logoSizeMm}mm` }}
+                  className="shrink-0 rounded-full bg-slate-900/60 p-[0.4mm] border border-amber-500/40 flex items-center justify-center overflow-hidden shadow-inner"
+                >
+                  <img
+                    src={logoBase64 || stickerData.logoUrl}
+                    alt="Logo"
+                    className="w-full h-full object-contain"
+                    crossOrigin="anonymous"
+                  />
+                </div>
+              )}
+
+              {/* Brand Text Stack */}
+              <div className="flex-1 min-w-0 flex flex-col justify-center leading-none overflow-hidden">
+                {/* Badge Label */}
+                {stickerData.badgeText && (
+                  <span 
+                    className={`inline-block self-start text-[6px] tracking-wider uppercase px-[1.2mm] py-[0.3mm] rounded-[0.8mm] font-extrabold mb-[0.8mm] truncate max-w-full ${ts.badge}`}
+                  >
+                    {stickerData.badgeText}
+                  </span>
+                )}
+
+                {/* Company Name */}
+                <h3 
+                  className={`text-[9.5px] sm:text-[10px] font-black uppercase tracking-tight leading-[1.05] truncate ${ts.title}`}
+                  title={stickerData.brandName}
+                >
+                  {stickerData.brandName}
+                </h3>
+
+                {/* Tagline */}
+                {stickerData.tagline && (
+                  <p className={`text-[6.2px] font-medium leading-tight mt-[0.5mm] truncate ${ts.sub}`}>
+                    {stickerData.tagline}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Divider 1 */}
+            <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
+
+            {/* SECTION 2: Contact Information (~45% width) */}
+            <div className="flex-[4.8] px-[2mm] flex flex-col justify-between min-w-0 leading-tight overflow-hidden">
+              {/* Row 1: Phone Numbers */}
+              <div className="flex items-center gap-[2mm] overflow-hidden whitespace-nowrap">
+                <div className="flex items-center gap-[0.8mm] shrink-0">
+                  <div className={`p-[0.4mm] rounded-full bg-amber-500/20 ${ts.accent}`}>
+                    <Phone className="w-[2.4mm] h-[2.4mm]" />
+                  </div>
+                  <span className={`text-[7.8px] font-extrabold font-mono tracking-tight ${ts.contact}`}>
+                    {stickerData.phone1}
+                  </span>
+                </div>
+
+                {stickerData.phone2 && (
+                  <div className="flex items-center gap-[0.8mm] shrink-0">
+                    <span className={`text-[6.5px] font-bold ${ts.accent}`}>|</span>
+                    <span className={`text-[7.8px] font-extrabold font-mono tracking-tight ${ts.contact}`}>
+                      {stickerData.phone2}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: Website & Email */}
+              <div className="flex items-center gap-[1.8mm] text-[6.5px] overflow-hidden whitespace-nowrap">
+                {stickerData.websiteUrl && (
+                  <div className="flex items-center gap-[0.7mm] shrink-0">
+                    <Globe className={`w-[2.2mm] h-[2.2mm] ${ts.accent}`} />
+                    <span className={`font-bold ${ts.accent} truncate max-w-[32mm]`}>
+                      {stickerData.websiteUrl.replace(/^https?:\/\//, '')}
+                    </span>
+                  </div>
+                )}
+
+                {stickerData.email && (
+                  <div className="flex items-center gap-[0.7mm] shrink-0">
+                    <Mail className={`w-[2.2mm] h-[2.2mm] ${ts.sub}`} />
+                    <span className={`font-medium ${ts.contact} truncate max-w-[28mm]`}>
+                      {stickerData.email}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 3: Workshop Address */}
+              <div className="flex items-center gap-[0.7mm] text-[6.2px] overflow-hidden leading-tight">
+                <MapPin className={`w-[2.2mm] h-[2.2mm] shrink-0 ${ts.accent}`} />
+                <span className={`font-medium truncate ${ts.contact}`}>
+                  {stickerData.address}
+                </span>
+              </div>
+
+              {/* Row 4: Warranty Badge */}
+              {(stickerData.showWarranty || stickerData.jobTag) && (
+                <div className="flex items-center gap-[1.2mm] overflow-hidden">
+                  <div className={`inline-flex items-center gap-[0.8mm] px-[1.2mm] py-[0.2mm] rounded-[0.6mm] bg-amber-500/15 border border-amber-500/30 text-[5.5px] font-bold ${ts.accent}`}>
+                    <ShieldCheck className="w-[2mm] h-[2mm]" />
+                    <span className="truncate">
+                      {stickerData.jobTag ? `${stickerData.jobTag} • ` : ''}
+                      {stickerData.warrantyText}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Divider 2 */}
+            <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
+
+            {/* SECTION 3: QR Code (~17% width) */}
+            <div className="flex-[1.8] shrink-0 pl-[1.5mm] flex flex-col items-center justify-center leading-none">
+              <div className={`p-[0.5mm] bg-white rounded-[1.2mm] shadow-sm border ${ts.qrBorder}`}>
+                {qrCodeDataUrl ? (
+                  <img
+                    src={qrCodeDataUrl}
+                    alt="Website QR"
+                    style={{ width: `${qrSizeMm}mm`, height: `${qrSizeMm}mm` }}
+                    className="object-contain block"
+                  />
+                ) : (
+                  <div 
+                    style={{ width: `${qrSizeMm}mm`, height: `${qrSizeMm}mm` }}
+                    className="bg-slate-200 flex items-center justify-center"
+                  >
+                    <QrCode className="w-[10mm] h-[10mm] text-slate-500 animate-pulse" />
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-[0.8mm] flex items-center justify-center">
+                <span className={`text-[5.4px] font-extrabold uppercase tracking-wider text-center truncate ${ts.qrText}`}>
+                  {stickerData.qrPrompt || 'SCAN TO VISIT'}
+                </span>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* SQUARISH COMPACT LAYOUT */
+          <div className="w-full h-full flex flex-col justify-between overflow-hidden">
+            <div className="flex items-center gap-[1.5mm] pb-[1mm] border-b border-amber-500/30">
+              {stickerData.showLogo && (logoBase64 || stickerData.logoUrl) && (
+                <div 
+                  style={{ width: `${logoSizeMm}mm`, height: `${logoSizeMm}mm` }}
+                  className="shrink-0 rounded-full bg-slate-900/60 p-[0.3mm] border border-amber-500/40 flex items-center justify-center overflow-hidden"
+                >
+                  <img src={logoBase64 || stickerData.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className={`text-[9px] font-black uppercase truncate ${ts.title}`}>{stickerData.brandName}</h3>
+                {stickerData.tagline && <p className={`text-[6px] truncate ${ts.sub}`}>{stickerData.tagline}</p>}
+              </div>
+            </div>
+
+            <div className="flex-1 pt-[1mm] flex items-center justify-between gap-[1.5mm] overflow-hidden">
+              <div className="flex-1 min-w-0 flex flex-col justify-between h-full text-[6.2px]">
+                <span className={`font-mono font-bold truncate ${ts.contact}`}>📞 {stickerData.phone1}</span>
+                {stickerData.websiteUrl && <span className={`truncate font-bold ${ts.accent}`}>🌐 {stickerData.websiteUrl.replace(/^https?:\/\//, '')}</span>}
+                <span className={`truncate ${ts.contact}`}>📍 {stickerData.address}</span>
+                <span className={`truncate text-[5.5px] font-bold text-amber-400`}>🛡 {stickerData.warrantyText}</span>
+              </div>
+
+              <div className="shrink-0 flex flex-col items-center">
+                <div className={`p-[0.5mm] bg-white rounded border ${ts.qrBorder}`}>
+                  {qrCodeDataUrl && (
+                    <img src={qrCodeDataUrl} alt="QR" style={{ width: `${qrSizeMm}mm`, height: `${qrSizeMm}mm` }} className="object-contain block" />
+                  )}
+                </div>
+                <span className={`text-[5px] font-bold mt-[0.5mm] ${ts.qrText}`}>SCAN</span>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Brand Text Stack */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center leading-none">
-          {/* Badge Label */}
-          {stickerData.badgeText && (
-            <span 
-              className={`inline-block self-start text-[6px] tracking-wider uppercase px-[1.2mm] py-[0.3mm] rounded-[0.8mm] font-extrabold mb-[0.8mm] ${ts.badge}`}
-            >
-              {stickerData.badgeText}
-            </span>
-          )}
-
-          {/* Company Name */}
-          <h3 
-            className={`text-[10px] sm:text-[10.5px] font-black uppercase tracking-tight leading-[1.05] line-clamp-2 ${ts.title}`}
-          >
-            {stickerData.brandName}
-          </h3>
-
-          {/* Tagline */}
-          {stickerData.tagline && (
-            <p className={`text-[6.5px] font-medium leading-tight mt-[0.6mm] line-clamp-2 ${ts.sub}`}>
-              {stickerData.tagline}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
-
-      {/* SECTION 2: Contact Information (Center ~67mm) */}
-      <div className="flex-1 px-[2.2mm] flex flex-col justify-between min-w-0 leading-tight">
-        {/* Row 1: Phone Numbers with Icons */}
-        <div className="flex items-center gap-[2.5mm] overflow-hidden whitespace-nowrap">
-          <div className="flex items-center gap-[1mm] shrink-0">
-            <div className={`p-[0.5mm] rounded-full bg-amber-500/20 ${ts.accent}`}>
-              <Phone className="w-[2.6mm] h-[2.6mm]" />
-            </div>
-            <span className={`text-[8px] font-extrabold font-mono tracking-tight ${ts.contact}`}>
-              {stickerData.phone1}
-            </span>
-          </div>
-
-          {stickerData.phone2 && (
-            <div className="flex items-center gap-[1mm] shrink-0">
-              <span className={`text-[7px] font-bold ${ts.accent}`}>|</span>
-              <span className={`text-[8px] font-extrabold font-mono tracking-tight ${ts.contact}`}>
-                {stickerData.phone2}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Row 2: Website & Email */}
-        <div className="flex items-center gap-[2mm] text-[6.8px] overflow-hidden whitespace-nowrap">
-          {stickerData.websiteUrl && (
-            <div className="flex items-center gap-[0.8mm] shrink-0">
-              <Globe className={`w-[2.4mm] h-[2.4mm] ${ts.accent}`} />
-              <span className={`font-bold ${ts.accent} truncate max-w-[34mm]`}>
-                {stickerData.websiteUrl.replace(/^https?:\/\//, '')}
-              </span>
-            </div>
-          )}
-
-          {stickerData.email && (
-            <div className="flex items-center gap-[0.8mm] shrink-0">
-              <Mail className={`w-[2.4mm] h-[2.4mm] ${ts.sub}`} />
-              <span className={`font-medium ${ts.contact} truncate max-w-[30mm]`}>
-                {stickerData.email}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Row 3: Workshop Address */}
-        <div className="flex items-center gap-[0.8mm] text-[6.5px] overflow-hidden leading-tight">
-          <MapPin className={`w-[2.4mm] h-[2.4mm] shrink-0 ${ts.accent}`} />
-          <span className={`font-medium truncate ${ts.contact}`}>
-            {stickerData.address}
-          </span>
-        </div>
-
-        {/* Optional Row 4: Job Tag / Warranty */}
-        {(stickerData.showWarranty || stickerData.jobTag) && (
-          <div className="flex items-center gap-[1.5mm] overflow-hidden">
-            <div className={`inline-flex items-center gap-[0.8mm] px-[1.2mm] py-[0.2mm] rounded-[0.6mm] bg-amber-500/15 border border-amber-500/30 text-[5.8px] font-bold ${ts.accent}`}>
-              <ShieldCheck className="w-[2.2mm] h-[2.2mm]" />
-              <span className="truncate">
-                {stickerData.jobTag ? `${stickerData.jobTag} • ` : ''}
-                {stickerData.warrantyText}
-              </span>
-            </div>
-          </div>
+        {/* Optional Bottom Hazard Accent Stripe */}
+        {ts.hazard && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-[1.2mm]"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3mm, #000 3mm, #000 6mm)'
+            }}
+          />
         )}
       </div>
-
-      {/* Divider */}
-      <div className={`w-[0.4mm] my-[1mm] shrink-0 ${ts.divider}`} />
-
-      {/* SECTION 3: QR Code & Call to Action (Right ~28mm) */}
-      <div className="w-[28mm] shrink-0 pl-[1.8mm] flex flex-col items-center justify-center leading-none">
-        {/* High contrast QR Code Box (white quiet zone background ensures 100% scan reliability) */}
-        <div className={`p-[0.6mm] bg-white rounded-[1.2mm] shadow-sm border ${ts.qrBorder}`}>
-          {qrCodeDataUrl ? (
-            <img
-              src={qrCodeDataUrl}
-              alt="Website QR"
-              className="w-[19.5mm] h-[19.5mm] object-contain block"
-            />
-          ) : (
-            <div className="w-[19.5mm] h-[19.5mm] bg-slate-200 flex items-center justify-center">
-              <QrCode className="w-[12mm] h-[12mm] text-slate-500 animate-pulse" />
-            </div>
-          )}
-        </div>
-
-        {/* Scan Callout */}
-        <div className="mt-[1mm] flex items-center justify-center gap-[0.6mm]">
-          <span className={`text-[5.8px] font-extrabold uppercase tracking-wider text-center ${ts.qrText}`}>
-            {stickerData.qrPrompt || 'SCAN TO VISIT'}
-          </span>
-        </div>
-      </div>
-
-      {/* Optional Bottom Hazard Accent Stripe */}
-      {ts.hazard && (
-        <div 
-          className="absolute bottom-0 left-0 right-0 h-[1.2mm]"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 3mm, #000 3mm, #000 6mm)'
-          }}
-        />
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 pb-16">
