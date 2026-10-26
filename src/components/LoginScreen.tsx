@@ -8,10 +8,8 @@ import {
   EyeOff, 
   ArrowRight, 
   Sparkles, 
-  KeyRound,
   AlertCircle
 } from 'lucide-react';
-import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_DEFAULT_PASSWORD } from '../lib/authService';
 
 export const LoginScreen: React.FC = () => {
   const { login, settings } = useApp();
@@ -37,12 +35,6 @@ export const LoginScreen: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleFillAdmin = () => {
-    setEmail(SUPER_ADMIN_EMAIL);
-    setPassword(SUPER_ADMIN_DEFAULT_PASSWORD);
-    setError(null);
   };
 
   return (
@@ -113,7 +105,7 @@ export const LoginScreen: React.FC = () => {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="e.g. deshithanayanajith@gmail.com"
+                  placeholder="Enter your registered email address"
                   autoComplete="username"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 text-sm placeholder-slate-600 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition font-medium"
                 />
@@ -144,18 +136,6 @@ export const LoginScreen: React.FC = () => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-            </div>
-
-            {/* Quick Fill Button */}
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                onClick={handleFillAdmin}
-                className="text-[11px] font-semibold text-amber-400/90 hover:text-amber-300 flex items-center gap-1 transition"
-              >
-                <KeyRound className="w-3 h-3" />
-                <span>Fill Owner Credentials</span>
-              </button>
             </div>
 
             {/* Submit Button */}
