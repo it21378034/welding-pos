@@ -4,6 +4,7 @@ import type { Quotation, Invoice } from '../types';
 import { Printer, Download, X, EyeOff } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getDistinctDescription } from '../lib/itemUtils';
 
 export const PrintView: React.FC = () => {
   const { activePrintDocument, setActivePrintDocument, settings, t } = useApp();
@@ -184,9 +185,10 @@ export const PrintView: React.FC = () => {
     if (showTotal) head[0].push(`TOTAL (${cur})`);
 
     const body = (items || []).map((item, idx) => {
+      const distinctDesc = getDistinctDescription(item.name, item.description);
       const row: string[] = [
         `${idx + 1}`,
-        item.name + (item.description ? `\n${item.description}` : ''),
+        item.name + (distinctDesc ? `\n${distinctDesc}` : ''),
         item.unit,
         `${item.quantity}`,
       ];
@@ -729,23 +731,26 @@ export const PrintView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {items?.map((item, idx) => (
-                <tr key={item.id} style={{ backgroundColor: 'transparent' }}>
-                  <td style={{ ...styles.td, textAlign: 'center', color: '#94a3b8', fontFamily: 'monospace' }}>{idx + 1}</td>
-                  <td style={styles.td}>
-                    <strong style={{ display: 'block', color: '#0f172a' }}>{item.name}</strong>
-                    {item.description && <span style={{ fontSize: '10px', color: '#64748b' }}>{item.description}</span>}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: 'center' }}>{item.unit}</td>
-                  <td style={{ ...styles.td, textAlign: 'center', fontFamily: 'monospace', fontWeight: '700' }}>{item.quantity}</td>
-                  {(isQuotation ? visibility.showPrices && visibility.showUnitPrice : true) && (
-                    <td style={styles.tdMono}>{item.unitPrice.toLocaleString()}</td>
-                  )}
-                  {(isQuotation ? visibility.showPrices && visibility.showTotal : true) && (
-                    <td style={{ ...styles.tdMono, fontWeight: '800' }}>{item.total.toLocaleString()}</td>
-                  )}
-                </tr>
-              ))}
+              {items?.map((item, idx) => {
+                const distinctDesc = getDistinctDescription(item.name, item.description);
+                return (
+                  <tr key={item.id} style={{ backgroundColor: 'transparent' }}>
+                    <td style={{ ...styles.td, textAlign: 'center', color: '#94a3b8', fontFamily: 'monospace' }}>{idx + 1}</td>
+                    <td style={styles.td}>
+                      <strong style={{ display: 'block', color: '#0f172a' }}>{item.name}</strong>
+                      {distinctDesc && <span style={{ fontSize: '10px', color: '#64748b' }}>{distinctDesc}</span>}
+                    </td>
+                    <td style={{ ...styles.td, textAlign: 'center' }}>{item.unit}</td>
+                    <td style={{ ...styles.td, textAlign: 'center', fontFamily: 'monospace', fontWeight: '700' }}>{item.quantity}</td>
+                    {(isQuotation ? visibility.showPrices && visibility.showUnitPrice : true) && (
+                      <td style={styles.tdMono}>{item.unitPrice.toLocaleString()}</td>
+                    )}
+                    {(isQuotation ? visibility.showPrices && visibility.showTotal : true) && (
+                      <td style={{ ...styles.tdMono, fontWeight: '800' }}>{item.total.toLocaleString()}</td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

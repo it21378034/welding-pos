@@ -26,6 +26,7 @@ import {
   SAMPLE_HANDWRITTEN_BILL_DATA,
   type ScannedMaterialItem 
 } from '../lib/geminiVisionService';
+import { getDistinctDescription, normalizeItemText } from '../lib/itemUtils';
 
 interface ScanQuotationModalProps {
   isOpen: boolean;
@@ -153,10 +154,22 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
   const applyParsedData = (data: typeof SAMPLE_HANDWRITTEN_BILL_DATA) => {
     setProjectName(data.projectName || 'Fabrication & Metal Works');
     setItems(
-      data.items.map((item, index) => ({
-        ...item,
-        id: item.id || `item-${Date.now()}-${index}`,
-      }))
+      data.items.map((item, index) => {
+        let name = item.name;
+        let desc = item.description || '';
+        const normN = normalizeItemText(name);
+        const normD = normalizeItemText(desc);
+        if (desc && normD.includes(normN) && desc.length > name.length && normN.length < 25) {
+          name = desc;
+          desc = '';
+        }
+        return {
+          ...item,
+          name,
+          description: getDistinctDescription(name, desc),
+          id: item.id || `item-${Date.now()}-${index}`,
+        };
+      })
     );
     setHandwrittenTotal(data.grandTotal || data.subtotal);
     setNotes(data.notes || 'Scanned from handwritten workshop material list');
@@ -167,7 +180,9 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
       prev.map(it => {
         if (it.id !== id) return it;
         const updated = { ...it, [field]: val };
-        if (field === 'quantity' || field === 'unitPrice') {
+        if (field === 'name') {
+          updated.description = getDistinctDescription(val, it.description);
+        } else if (field === 'quantity' || field === 'unitPrice') {
           const qty = field === 'quantity' ? parseFloat(val) || 0 : it.quantity;
           const price = field === 'unitPrice' ? parseFloat(val) || 0 : it.unitPrice;
           updated.total = Math.round(qty * price);
@@ -222,7 +237,7 @@ export const ScanQuotationModal: React.FC<ScanQuotationModalProps> = ({
       quantity: it.quantity,
       unitPrice: it.unitPrice,
       total: it.total,
-      description: it.description || '',
+      description: getDistinctDescription(it.name, it.description),
     }));
 
     const subtotal = calculatedSubtotal;

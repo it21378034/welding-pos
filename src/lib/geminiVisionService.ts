@@ -1,3 +1,6 @@
+import { getDistinctDescription, normalizeItemText } from './itemUtils';
+export { getDistinctDescription, normalizeItemText };
+
 export interface ScannedMaterialItem {
   id?: string;
   name: string;
@@ -30,7 +33,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 3,
       unitPrice: 5833.33,
       total: 17500,
-      description: 'Heavy duty square hollow section (2.0mm thickness)',
+      description: '',
     },
     {
       name: '1½" x 1½" Box Bar (1.6mm)',
@@ -38,7 +41,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 4800,
       total: 4800,
-      description: 'Square hollow section (1.6mm thickness)',
+      description: '',
     },
     {
       name: '1½" x 1½" Angle Iron (5mm)',
@@ -46,7 +49,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 5100,
       total: 5100,
-      description: '5mm thick structural angle iron',
+      description: '',
     },
     {
       name: '1" x ¼" Flat Iron (5mm)',
@@ -54,7 +57,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 4,
       unitPrice: 1950,
       total: 7800,
-      description: '5mm thick mild steel flat bar',
+      description: '',
     },
     {
       name: '2" x 1" Gate Bottom Roller',
@@ -62,7 +65,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 2,
       unitPrice: 2000,
       total: 4000,
-      description: 'Heavy duty bottom track rollers with bearings',
+      description: '',
     },
     {
       name: '2" x 1" Top Gate Roller Guide',
@@ -70,7 +73,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 3000,
       total: 3000,
-      description: 'Top guide roller with bracket',
+      description: '',
     },
     {
       name: '2" x 1" Gate Pin / Hinge Pin',
@@ -78,7 +81,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 2,
       unitPrice: 550,
       total: 1100,
-      description: 'Mild steel machined gate pins',
+      description: '',
     },
     {
       name: '5 ft Amano Cladding Sheet (0.47mm)',
@@ -86,7 +89,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 5,
       unitPrice: 2400,
       total: 12000,
-      description: '0.47mm zinc/alu coated corrugated sheet',
+      description: '',
     },
     {
       name: 'Gate Lock Mechanism',
@@ -94,7 +97,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 2,
       unitPrice: 500,
       total: 1000,
-      description: 'Heavy duty welding gate drop lock / latch',
+      description: '',
     },
     {
       name: '10" Gate Pull Handles',
@@ -102,7 +105,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 2,
       unitPrice: 650,
       total: 1300,
-      description: '10-inch fabricated steel handles',
+      description: '',
     },
     {
       name: '1½" x 1½" Angle Iron (5 ft length)',
@@ -110,7 +113,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 5,
       unitPrice: 400,
       total: 2000,
-      description: 'Cut length angle iron support track',
+      description: '',
     },
     {
       name: '5/32" x ½" Pop Rivets',
@@ -118,7 +121,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 400,
       unitPrice: 1,
       total: 400,
-      description: 'Blind aluminum pop rivets for sheet fixing',
+      description: '',
     },
     {
       name: 'Thinner (Cleaning & Spraying)',
@@ -126,7 +129,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 900,
       total: 900,
-      description: 'NC Thinner 1 Litre can',
+      description: '',
     },
     {
       name: 'QD Black Enamel Paint',
@@ -134,7 +137,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 2600,
       total: 2600,
-      description: 'Quick drying anti-corrosive black gloss paint 1L',
+      description: '',
     },
     {
       name: 'Sundries, Welding Electrodes & Extra Materials',
@@ -142,7 +145,7 @@ export const SAMPLE_HANDWRITTEN_BILL_DATA: ScanQuotationResult = {
       quantity: 1,
       unitPrice: 3000,
       total: 3000,
-      description: 'Welding rods, cutting discs, grinding discs & bolts',
+      description: '',
     },
   ],
   subtotal: 66500,
@@ -219,12 +222,12 @@ The user has uploaded a photo of a handwritten material list, hardware store bil
 TASK:
 1. Carefully transcribe all numbered or unnumbered line items from the handwritten document.
 2. For each item, accurately read:
-   - Item name / description (including dimensions like 2x2, 1 1/2 x 1 1/2, 5/32, thicknesses like 2.0mm, 1.6mm, 5mm, material types like Box Bar, Angle Iron, Flat Iron, Amano Sheet, Gate Roller, Gate Lock, Pop Rivets, Thinner, QD Black paint, etc.).
-   - Quantity (integer or decimal). If formatted as "= 03" or "- 03" or "5 ft", extract the quantity.
-   - Unit: e.g. "Bars", "Nos", "Feet", "Sheets", "Litres", "Kg", "Job", "Pack".
-   - Total price: the handwritten line price on the right side.
-   - Unit price: total price divided by quantity (e.g., if total is 17500 and qty is 3, unit price is 5833.33).
-   - Description / Specifications: any extra details written (e.g. gauge, dimensions, purpose).
+   - name: The full, complete line item name and specification (including dimensions, thicknesses/gauges, material types like Box Bar, Angle Iron, Flat Iron, Amano Sheet, Gate Roller, Gate Lock, Pop Rivets, Thinner, QD Black paint, or labor descriptions like "Labor charges for fabrication and painting"). Put the entire complete specification in "name".
+   - quantity: (integer or decimal). If formatted as "= 03" or "- 03" or "5 ft", extract the numeric quantity.
+   - unit: e.g. "Bars", "Nos", "Feet", "Sheets", "Litres", "Kg", "Job", "Pack".
+   - total: the handwritten line price on the right side.
+   - unitPrice: total price divided by quantity (e.g., if total is 17500 and qty is 3, unit price is 5833.33).
+   - description: MUST BE an empty string "" unless there is a separate distinct usage/installation note written on the document that is not already part of the item name. NEVER repeat, paraphrase, or put synonyms of the item name into "description".
 3. Extract or infer:
    - projectName: A suitable title for this welding job based on materials (e.g. "Main Gate Metal Fabrication", "Security Grille & Gate Work", etc.)
    - customerName: If any customer name or address is written on top, extract it; otherwise empty.
@@ -240,12 +243,12 @@ Return valid JSON with this exact schema without any markdown formatting or code
   "grandTotal": number,
   "items": [
     {
-      "name": "string",
+      "name": "string (complete item name & dimensions)",
       "unit": "string",
       "quantity": number,
       "unitPrice": number,
       "total": number,
-      "description": "string"
+      "description": "string (empty string \"\" unless distinct separate note)"
     }
   ]
 }`;
@@ -382,15 +385,27 @@ Return valid JSON with this exact schema without any markdown formatting or code
         const qty = Number(item.quantity) || 1;
         const total = Number(item.total) || 0;
         const unitPrice = Number(item.unitPrice) || (qty > 0 ? total / qty : total);
+        let name = String(item.name || `Material Item ${idx + 1}`).trim();
+        let rawDesc = item.description ? String(item.description).trim() : '';
+
+        // If description has more complete details than a short name, promote it
+        const normN = normalizeItemText(name);
+        const normD = normalizeItemText(rawDesc);
+        if (rawDesc && normD.includes(normN) && rawDesc.length > name.length && normN.length < 25) {
+          name = rawDesc;
+          rawDesc = '';
+        }
+
+        const distinctDesc = getDistinctDescription(name, rawDesc);
 
         return {
           id: `scanned-${Date.now()}-${idx}`,
-          name: String(item.name || `Material Item ${idx + 1}`).trim(),
+          name,
           unit: String(item.unit || 'Nos').trim(),
           quantity: qty,
           unitPrice: Math.round(unitPrice * 100) / 100,
           total: total > 0 ? total : Math.round(qty * unitPrice),
-          description: item.description ? String(item.description).trim() : '',
+          description: distinctDesc,
         };
       });
 

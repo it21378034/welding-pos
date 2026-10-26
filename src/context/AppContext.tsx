@@ -4,6 +4,7 @@ import { initialSettings, initialCustomers, initialCatalogItems, initialQuotatio
 import { translations } from '../locales/i18n';
 import * as db from '../lib/supabaseService';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { getDistinctDescription } from '../lib/itemUtils';
 
 interface AppContextType {
   // Navigation & Theme
@@ -323,8 +324,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addQuotation = (quotationData: Omit<Quotation, 'id' | 'quotationNumber' | 'createdAt'>): Quotation => {
+    const sanitizedItems = (quotationData.items || []).map(it => ({
+      ...it,
+      description: getDistinctDescription(it.name, it.description),
+    }));
+
     const newQuotation: Quotation = {
       ...quotationData,
+      items: sanitizedItems,
       id: 'qt-' + Date.now(),
       quotationNumber: generateQuotationNumber(),
       createdAt: new Date().toISOString(),
@@ -335,8 +342,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateQuotation = (id: string, updated: Partial<Quotation>) => {
-    setQuotations(prev => prev.map(q => (q.id === id ? { ...q, ...updated } : q)));
-    syncToCloud(() => db.updateQuotationDb(id, updated), 'updateQuotation');
+    const sanitizedUpdated = { ...updated };
+    if (sanitizedUpdated.items) {
+      sanitizedUpdated.items = sanitizedUpdated.items.map(it => ({
+        ...it,
+        description: getDistinctDescription(it.name, it.description),
+      }));
+    }
+    setQuotations(prev => prev.map(q => (q.id === id ? { ...q, ...sanitizedUpdated } : q)));
+    syncToCloud(() => db.updateQuotationDb(id, sanitizedUpdated), 'updateQuotation');
   };
 
   const deleteQuotation = (id: string) => {
@@ -367,6 +381,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const q = quotations.find(item => item.id === quotationId);
     if (!q) throw new Error('Quotation not found');
 
+    const sanitizedItems = (q.items || []).map(it => ({
+      ...it,
+      description: getDistinctDescription(it.name, it.description),
+    }));
+
     const newInvoice: Invoice = {
       id: 'inv-' + Date.now(),
       invoiceNumber: generateInvoiceNumber(),
@@ -379,7 +398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerAddress: q.customerAddress,
       customerEmail: q.customerEmail,
       projectName: q.projectName,
-      items: q.items,
+      items: sanitizedItems,
       subtotal: q.subtotal,
       taxRate: q.taxRate,
       taxAmount: q.taxAmount,
