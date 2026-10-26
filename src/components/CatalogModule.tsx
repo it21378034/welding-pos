@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import type { CatalogItem } from '../types';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 import { Wrench, Plus, Search, Edit3, Trash2, X } from 'lucide-react';
 
 export const CatalogModule: React.FC = () => {
   const { catalogItems, addCatalogItem, updateCatalogItem, deleteCatalogItem, settings, t } = useApp();
+  const { showConfirm, showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
@@ -126,8 +128,17 @@ export const CatalogModule: React.FC = () => {
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(t('confirmDelete'))) deleteCatalogItem(item.id);
+                    onClick={async () => {
+                      const confirmed = await showConfirm({
+                        title: 'Delete Item',
+                        message: t('confirmDelete'),
+                        confirmLabel: 'Delete',
+                        danger: true,
+                      });
+                      if (confirmed) {
+                        deleteCatalogItem(item.id);
+                        showToast('Item deleted successfully', 'success');
+                      }
                     }}
                     className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition"
                   >

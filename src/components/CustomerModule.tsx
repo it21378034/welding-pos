@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import type { Customer } from '../types';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 import { Users, UserPlus, Search, Edit3, Trash2, Phone, MapPin, Mail, X } from 'lucide-react';
 
 export const CustomerModule: React.FC = () => {
   const { customers, addCustomer, updateCustomer, deleteCustomer, t } = useApp();
+  const { showConfirm, showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -110,8 +112,17 @@ export const CustomerModule: React.FC = () => {
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(t('confirmDelete'))) deleteCustomer(cust.id);
+                    onClick={async () => {
+                      const confirmed = await showConfirm({
+                        title: 'Delete Customer',
+                        message: t('confirmDelete'),
+                        confirmLabel: 'Delete',
+                        danger: true,
+                      });
+                      if (confirmed) {
+                        deleteCustomer(cust.id);
+                        showToast('Customer deleted successfully', 'success');
+                      }
                     }}
                     className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition"
                     title={t('delete')}

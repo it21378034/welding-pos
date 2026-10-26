@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Invoice } from '../types';
 import { useApp } from '../context/AppContext';
+import { useToast } from './Toast';
 import { 
   Receipt, 
   Printer, 
@@ -12,6 +13,7 @@ import {
 
 export const InvoiceModule: React.FC = () => {
   const { invoices, recordPayment, deleteInvoice, settings, setActivePrintDocument, t } = useApp();
+  const { showConfirm, showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -146,8 +148,17 @@ export const InvoiceModule: React.FC = () => {
                       <Receipt className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(t('confirmDelete'))) deleteInvoice(inv.id);
+                      onClick={async () => {
+                        const confirmed = await showConfirm({
+                          title: 'Delete Invoice',
+                          message: t('confirmDelete'),
+                          confirmLabel: 'Delete',
+                          danger: true,
+                        });
+                        if (confirmed) {
+                          deleteInvoice(inv.id);
+                          showToast('Invoice deleted successfully', 'success');
+                        }
                       }}
                       className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition"
                     >
