@@ -207,6 +207,16 @@ export const PrintView: React.FC = () => {
     const showUnitP = isQuotation ? visibility.showPrices && visibility.showUnitPrice : true;
     const showTotal = isQuotation ? visibility.showPrices && visibility.showTotal : true;
 
+    // Dynamically reduce font/padding when there are many items so footer stays on page 1
+    const itemCount = (items || []).length;
+    const hasImages = !!(isQuotation ? quotationData?.projectImages?.length : invoiceData?.projectImages?.length);
+    const pageH = doc.internal.pageSize.getHeight();
+    const footerHeight = 72;
+    // Estimate height per row (compact if many items or images present)
+    const needsCompact = itemCount > 7 || (itemCount > 5 && hasImages);
+    const tableFontSize = needsCompact ? 7 : 8;
+    const cellPaddingV = needsCompact ? 1.5 : 3;
+
     const head: string[][] = [['#', 'ITEM / FABRICATION DESCRIPTION', 'UNIT', 'QTY']];
     if (showUnitP) head[0].push(`UNIT PRICE (${cur})`);
     if (showTotal) head[0].push(`TOTAL (${cur})`);
@@ -235,12 +245,14 @@ export const PrintView: React.FC = () => {
         fontStyle: 'bold',
         fontSize: 7,
         lineWidth: 0,
+        cellPadding: { top: 2, bottom: 2, left: 2, right: 2 },
       },
       bodyStyles: {
-        fontSize: 8,
+        fontSize: tableFontSize,
         textColor: [30, 41, 59],
-        fillColor: false, // transparent — watermark shows through
+        fillColor: false,
         lineWidth: 0,
+        cellPadding: { top: cellPaddingV, bottom: cellPaddingV, left: 2, right: 2 },
       },
       alternateRowStyles: { fillColor: false },
       columnStyles: {
@@ -349,24 +361,31 @@ export const PrintView: React.FC = () => {
     // Use whichever is lower: table end or totals end, with minimal padding
     let afterTotalsY = Math.max(tableEndY, totalsEndY) + 4;
 
+    // Footer anchor: reserve footerHeight from bottom of page
+    const footerAnchorY = pageH - footerHeight;
+
     if (projImages && projImages.length > 0) {
+      // Calculate available space for thumbnails (between totals and footer anchor)
+      const spaceForImages = footerAnchorY - afterTotalsY - 12; // 12mm for section label
+      // Scale thumbnails to fit in available space (max 30mm tall, min 15mm)
+      const thumbH = Math.min(30, Math.max(15, spaceForImages - 4));
+      const thumbW = thumbH * (4 / 3); // maintain 4:3 aspect ratio
+      const gap = 4;
+
       // Section divider line
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.3);
       doc.line(14, afterTotalsY, pageW - 14, afterTotalsY);
-      afterTotalsY += 6;
+      afterTotalsY += 5;
 
       // Section title
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(148, 163, 184);
       doc.text('PROJECT DRAWINGS / ATTACHMENTS', 14, afterTotalsY);
-      afterTotalsY += 6;
+      afterTotalsY += 4;
 
       // Thumbnail dimensions — same size as the preview (120x90 px ≈ 40x30 mm)
-      const thumbW = 40;
-      const thumbH = 30;
-      const gap = 5;
       let thumbX = 14;
 
       for (let i = 0; i < projImages.length; i++) {
@@ -376,11 +395,9 @@ export const PrintView: React.FC = () => {
             thumbX = 14;
             afterTotalsY += thumbH + gap;
           }
-          // New page if out of vertical space
-          if (afterTotalsY + thumbH > doc.internal.pageSize.getHeight() - 50) {
-            doc.addPage();
-            afterTotalsY = 20;
-            thumbX = 14;
+          // If still overflowing footer, skip remaining images rather than add a page
+          if (afterTotalsY + thumbH > footerAnchorY - 4) {
+            break;
           }
           let format = 'PNG';
           if (projImages[i].startsWith('data:image/jpeg') || projImages[i].startsWith('data:image/jpg')) format = 'JPEG';
@@ -394,16 +411,16 @@ export const PrintView: React.FC = () => {
           console.error('Failed to add image to PDF', e);
         }
       }
-      afterTotalsY += thumbH + 6;
+      afterTotalsY += thumbH + 4;
     }
 
     // ── Footer: Terms & Bank Details ─────────────────────────────────────
-    const pageH = doc.internal.pageSize.getHeight();
-    let footerStartY = afterTotalsY + 6;
-    // Footer needs ~70mm. If it won't fit, add a new page.
-    if (footerStartY + 70 > pageH) {
-      doc.addPage();
-      footerStartY = 20;
+    // Always anchor footer to the bottom of page 1 — never add a second page for the footer
+    // If content overflows, we compress the gap; footer stays on page 1.
+    let footerStartY = Math.max(afterTotalsY + 4, pageH - footerHeight);
+    // Safety: if content somehow went past the footer zone, start footer immediately after content
+    if (footerStartY + footerHeight > pageH) {
+      footerStartY = pageH - footerHeight;
     }
 
     doc.setDrawColor(30, 58, 138); // Deep Navy
