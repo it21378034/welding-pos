@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './Toast';
-import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
   const { activeTab, setActiveTab, t, settings, isOnline, syncError, currentUser, logout } = useApp();
@@ -177,21 +176,8 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
 };
 
 export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobileMenu }) => {
-  const { theme, toggleTheme, language, setLanguage, role, setRole, settings, currentUser, logout } = useApp();
+  const { theme, toggleTheme, language, setLanguage, role, setRole, settings, currentUser, logout, setIsBarcodeScannerOpen } = useApp();
   const { showConfirm } = useToast();
-  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
-
-  // Keyboard shortcut listener: F2 or Ctrl+B / Cmd+B triggers barcode scanner
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F2' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
-        e.preventDefault();
-        setIsBarcodeScannerOpen(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
 
   return (
     <header className="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between text-slate-200 shrink-0 print:hidden">
@@ -308,11 +294,6 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
         )}
       </div>
 
-      {/* Global Barcode Scanner Modal */}
-      <BarcodeScannerModal
-        isOpen={isBarcodeScannerOpen}
-        onClose={() => setIsBarcodeScannerOpen(false)}
-      />
     </header>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar, Navbar } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
@@ -13,6 +13,7 @@ import { PurchaseListModule } from './components/PurchaseListModule';
 import { StickerModule } from './components/StickerModule';
 import { LoginScreen } from './components/LoginScreen';
 import { ToastProvider } from './components/Toast';
+import { BarcodeScannerModal } from './components/BarcodeScannerModal';
 import { Loader2 } from 'lucide-react';
 
 const LoadingScreen: React.FC = () => (
@@ -29,8 +30,20 @@ const LoadingScreen: React.FC = () => (
 );
 
 const MainLayout: React.FC = () => {
-  const { activeTab, theme, isLoading, currentUser } = useApp();
+  const { activeTab, theme, isLoading, currentUser, isBarcodeScannerOpen, setIsBarcodeScannerOpen } = useApp();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Global keyboard shortcut: F2 or Ctrl+B opens barcode scanner
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
+        e.preventDefault();
+        setIsBarcodeScannerOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setIsBarcodeScannerOpen]);
 
   if (isLoading) return <LoadingScreen />;
 
@@ -60,6 +73,10 @@ const MainLayout: React.FC = () => {
       </div>
 
       <PrintView />
+      <BarcodeScannerModal
+        isOpen={isBarcodeScannerOpen}
+        onClose={() => setIsBarcodeScannerOpen(false)}
+      />
     </div>
   );
 };

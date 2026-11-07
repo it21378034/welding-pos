@@ -79,6 +79,10 @@ interface AppContextType {
   activePrintDocument: { type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null;
   setActivePrintDocument: (doc: { type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null) => void;
 
+  // Global Barcode Scanner
+  isBarcodeScannerOpen: boolean;
+  setIsBarcodeScannerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
   // Backup & Restore
   exportDatabase: () => void;
   importDatabase: (jsonString: string) => boolean;
@@ -160,6 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [purchaseLists, setPurchaseLists] = useState<PurchaseList[]>([]);
 
   const [activePrintDocument, setActivePrintDocument] = useState<{ type: 'quotation' | 'invoice'; data: Quotation | Invoice; layout: 'a4' | 'thermal' } | null>(null);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
 
   // Cloud sync state
   const [isLoading, setIsLoading] = useState(true);
@@ -731,6 +736,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         activePrintDocument,
         setActivePrintDocument,
+
+        isBarcodeScannerOpen,
+        setIsBarcodeScannerOpen,
 
         exportDatabase,
         importDatabase,
