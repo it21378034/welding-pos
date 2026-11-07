@@ -91,7 +91,7 @@ const PurchasePrintView: React.FC<{
       const barcodeValue = list.barcode || list.listNumber || '';
       if (barcodeValue) {
         try {
-          const barcodeThermal = generateBarcodeDataUrl(barcodeValue, { height: 24, showText: false });
+          const barcodeThermal = generateBarcodeDataUrl(barcodeValue, { height: 24, showText: false, color: '#1e3a8a', bgColor: '#ffffff' });
           if (barcodeThermal) {
             doc.addImage(barcodeThermal, 'PNG', pageW/2 - 24, 52, 48, 9);
           }
@@ -191,9 +191,14 @@ const PurchasePrintView: React.FC<{
       const barcodeValue = list.barcode || list.listNumber || '';
       if (barcodeValue) {
         try {
-          const barcodeA4 = generateBarcodeDataUrl(barcodeValue, { height: 26, showText: false });
+          const barcodeA4 = generateBarcodeDataUrl(barcodeValue, { height: 26, showText: false, color: '#1e3a8a', bgColor: '#eff6ff' });
           if (barcodeA4) {
             doc.addImage(barcodeA4, 'PNG', pageW - 64, 33, 50, 9);
+            // Text label below barcode
+            doc.setFontSize(7);
+            doc.setFont('courier', 'bold');
+            doc.setTextColor(30, 58, 138);
+            doc.text(barcodeValue, pageW - 39, 44, { align: 'center' });
           }
         } catch (_) {}
       }

@@ -141,6 +141,7 @@ export const PrintView: React.FC = () => {
           height: 32,
           moduleWidth: 1.8,
           showText: false,
+          color: '#1e3a8a',
           bgColor: '#eff6ff',
         });
         if (barcodePdfBase64) {
