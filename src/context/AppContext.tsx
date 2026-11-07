@@ -406,11 +406,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: getDistinctDescription(it.name, it.description),
     }));
 
+    const qNum = generateQuotationNumber();
     const newQuotation: Quotation = {
       ...quotationData,
       items: sanitizedItems,
       id: 'qt-' + Date.now(),
-      quotationNumber: generateQuotationNumber(),
+      quotationNumber: qNum,
+      barcode: qNum,
       createdAt: new Date().toISOString(),
     };
     setQuotations(prev => [newQuotation, ...prev]);
@@ -439,10 +441,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const original = quotations.find(q => q.id === id);
     if (!original) throw new Error('Quotation not found');
 
+    const dupNum = generateQuotationNumber();
     const duplicated: Quotation = {
       ...original,
       id: 'qt-' + Date.now(),
-      quotationNumber: generateQuotationNumber(),
+      quotationNumber: dupNum,
+      barcode: dupNum,
       projectName: `${original.projectName} (Copy)`,
       status: 'draft',
       createdAt: new Date().toISOString(),
@@ -463,9 +467,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: getDistinctDescription(it.name, it.description),
     }));
 
+    const invNum = generateInvoiceNumber();
     const newInvoice: Invoice = {
       id: 'inv-' + Date.now(),
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: invNum,
+      barcode: invNum,
       quotationId: q.id,
       date: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
@@ -501,10 +507,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addInvoice = (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber' | 'createdAt'>): Invoice => {
+    const invNum = generateInvoiceNumber();
     const newInvoice: Invoice = {
       ...invoiceData,
       id: 'inv-' + Date.now(),
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: invNum,
+      barcode: invNum,
       createdAt: new Date().toISOString(),
     };
     setInvoices(prev => [newInvoice, ...prev]);
@@ -564,10 +572,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPurchaseList = (plData: Omit<PurchaseList, 'id' | 'listNumber' | 'createdAt'>): PurchaseList => {
+    const listNum = `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`;
     const newList: PurchaseList = {
       ...plData,
       id: 'pl-' + Date.now(),
-      listNumber: `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`,
+      listNumber: listNum,
+      barcode: listNum,
       createdAt: new Date().toISOString()
     };
     setPurchaseLists(prev => [newList, ...prev]);
@@ -592,10 +602,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const duplicatePurchaseList = (id: string): PurchaseList => {
     const listToDup = purchaseLists.find(pl => pl.id === id);
     if (!listToDup) throw new Error('List not found');
+    const listNum = `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`;
     const newList: PurchaseList = {
       ...listToDup,
       id: 'pl-' + Date.now(),
-      listNumber: `PL-${new Date().getFullYear()}-${String(purchaseLists.length + 1).padStart(3, '0')}`,
+      listNumber: listNum,
+      barcode: listNum,
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString()
     };

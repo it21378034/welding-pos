@@ -152,6 +152,7 @@ export const initialQuotations: Quotation[] = [
   {
     id: 'qt-1',
     quotationNumber: 'QT-2026-001',
+    barcode: 'QT-2026-001',
     date: '2026-08-01',
     validUntil: '2026-08-31',
     customerId: 'cust-1',
@@ -216,6 +217,7 @@ export const initialQuotations: Quotation[] = [
   {
     id: 'qt-2',
     quotationNumber: 'QT-2026-002',
+    barcode: 'QT-2026-002',
     date: '2026-08-02',
     validUntil: '2026-09-02',
     customerId: 'cust-2',
@@ -273,6 +275,7 @@ export const initialInvoices: Invoice[] = [
   {
     id: 'inv-1',
     invoiceNumber: 'INV-2026-001',
+    barcode: 'INV-2026-001',
     quotationId: 'qt-1',
     date: '2026-08-02',
     dueDate: '2026-08-16',

@@ -5,6 +5,8 @@ import { Printer, Download, X, EyeOff } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getDistinctDescription } from '../lib/itemUtils';
+import { generateBarcodeDataUrl } from '../lib/barcodeUtils';
+import { Barcode } from './Barcode';
 
 export const PrintView: React.FC = () => {
   const { activePrintDocument, setActivePrintDocument, settings, t } = useApp();
@@ -24,6 +26,7 @@ export const PrintView: React.FC = () => {
   };
 
   const docNumber = isQuotation ? quotationData?.quotationNumber : invoiceData?.invoiceNumber;
+  const barcodeValue = (isQuotation ? quotationData?.barcode || quotationData?.quotationNumber : invoiceData?.barcode || invoiceData?.invoiceNumber) || docNumber || '';
   const docDate = isQuotation ? quotationData?.date : invoiceData?.date;
   const customerName = isQuotation ? quotationData?.customerName : invoiceData?.customerName;
   const customerPhone = isQuotation ? quotationData?.customerPhone : invoiceData?.customerPhone;
@@ -77,7 +80,7 @@ export const PrintView: React.FC = () => {
 
     // ── Header Background ─────────────────────────────────────────────────
     doc.setFillColor(239, 246, 255); // Light blue: #eff6ff
-    doc.roundedRect(10, 6, pageW - 20, 36, 2, 2, 'F');
+    doc.roundedRect(10, 6, pageW - 20, 48, 2, 2, 'F');
 
     // ── Logo ─────────────────────────────────────────────────────────────
     const logoUrl = settings.logoUrl || '/logo.png';
@@ -131,42 +134,59 @@ export const PrintView: React.FC = () => {
       { align: 'right' }
     );
 
+    // ── Header Barcode ───────────────────────────────────────────────────
+    if (barcodeValue) {
+      try {
+        const barcodePdfBase64 = generateBarcodeDataUrl(barcodeValue, {
+          height: 28,
+          moduleWidth: 2,
+          showText: false,
+          bgColor: '#eff6ff',
+        });
+        if (barcodePdfBase64) {
+          doc.addImage(barcodePdfBase64, 'PNG', pageW - 64, 39, 50, 11);
+        }
+      } catch (e) {
+        console.warn('Failed to embed barcode in PDF', e);
+      }
+    }
+
     // Divider line — aligned with bottom edge of header background box
     doc.setDrawColor(30, 58, 138);
     doc.setLineWidth(0.7);
-    doc.line(10, 42, pageW - 10, 42);
+    doc.line(10, 56, pageW - 10, 56);
 
     // ── Customer & Project Box ───────────────────────────────────────────
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(30, 58, 138); // Navy blue border
     doc.setLineWidth(0.4);
-    doc.roundedRect(14, 47, pageW - 28, 34, 2, 2, 'FD'); // Taller box, starts lower
+    doc.roundedRect(14, 60, pageW - 28, 32, 2, 2, 'FD'); // Starts lower to accommodate barcode
 
     // Customer Details (left column)
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(148, 163, 184);
-    doc.text('CUSTOMER DETAILS', 18, 54);
+    doc.text('CUSTOMER DETAILS', 18, 66);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(customerName || '', 18, 61);
+    doc.text(customerName || '', 18, 73);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(customerPhone || '', 18, 67);
-    doc.text(customerAddress || '', 18, 73);
+    doc.text(customerPhone || '', 18, 79);
+    doc.text(customerAddress || '', 18, 85);
 
     // Project Specifications (right column)
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(148, 163, 184);
-    doc.text('PROJECT SPECIFICATIONS', pageW / 2 + 2, 54);
+    doc.text('PROJECT SPECIFICATIONS', pageW / 2 + 2, 66);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
     const projLines = doc.splitTextToSize(projectName || '', (pageW / 2) - 20);
-    doc.text(projLines, pageW / 2 + 2, 61);
+    doc.text(projLines, pageW / 2 + 2, 73);
 
     // ── Watermark (Canvas pre-processed for reliable opacity in PDF) ──────
     if (watermarkBase64) {
@@ -198,7 +218,7 @@ export const PrintView: React.FC = () => {
     });
 
     autoTable(doc, {
-      startY: 86,
+      startY: 96,
       head,
       body,
       theme: 'plain',
@@ -689,6 +709,10 @@ export const PrintView: React.FC = () => {
               ) : (
                 <p style={styles.docMeta}>Due Date: <strong>{invoiceData?.dueDate}</strong></p>
               )}
+              {/* Unique Scannable Barcode */}
+              <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                <Barcode value={barcodeValue} height={26} barWidth={1.2} showText={true} />
+              </div>
             </div>
           </div>
 
@@ -863,6 +887,10 @@ export const PrintView: React.FC = () => {
             </p>
             <p style={{ fontWeight: '700', margin: '0 0 2px' }}>{docNumber}</p>
             <p style={{ fontSize: '9px', margin: 0 }}>{docDate}</p>
+            {/* Thermal Barcode */}
+            <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'center' }}>
+              <Barcode value={barcodeValue} height={26} barWidth={1.1} showText={false} />
+            </div>
           </div>
 
           <div style={{ marginBottom: '8px' }}>

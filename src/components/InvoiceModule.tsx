@@ -8,13 +8,16 @@ import {
   CreditCard, 
   Search, 
   Trash2, 
-  X
+  X,
+  Scan
 } from 'lucide-react';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 export const InvoiceModule: React.FC = () => {
   const { invoices, recordPayment, deleteInvoice, settings, setActivePrintDocument, t } = useApp();
   const { showConfirm, showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -46,6 +49,7 @@ export const InvoiceModule: React.FC = () => {
   const filteredInvoices = invoices.filter(
     inv =>
       inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (inv.barcode && inv.barcode.toLowerCase().includes(searchTerm.toLowerCase())) ||
       inv.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       inv.projectName.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -65,17 +69,39 @@ export const InvoiceModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          placeholder={t('searchPlaceholder')}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm transition"
-        />
+      {/* Search & Barcode Scan Bar */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search invoices by number, customer, project or barcode..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm transition"
+          />
+        </div>
+        <button
+          onClick={() => setIsScannerOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-blue-500 text-blue-400 text-xs font-bold transition shrink-0 shadow-sm"
+          title="Scan Invoice Barcode"
+        >
+          <Scan className="w-4 h-4" />
+          <span className="hidden sm:inline">Scan Barcode</span>
+        </button>
       </div>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onSelectDocument={res => {
+          if (res.type === 'invoice') {
+            setSearchTerm((res.data as Invoice).invoiceNumber);
+            setIsScannerOpen(false);
+          }
+        }}
+      />
 
       {/* Invoices Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
@@ -97,7 +123,15 @@ export const InvoiceModule: React.FC = () => {
             <tbody className="divide-y divide-slate-800">
               {filteredInvoices.map(inv => (
                 <tr key={inv.id} className="hover:bg-slate-800/40 transition">
-                  <td className="py-3 px-4 font-mono font-bold text-blue-400">{inv.invoiceNumber}</td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono font-bold text-blue-400">{inv.invoiceNumber}</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                        <Scan className="w-2.5 h-2.5 text-blue-400" />
+                        {inv.barcode || inv.invoiceNumber}
+                      </span>
+                    </div>
+                  </td>
                   <td className="py-3 px-4 font-semibold text-slate-100">{inv.customerName}</td>
                   <td className="py-3 px-4 text-slate-400 max-w-[180px] truncate">{inv.projectName}</td>
                   <td className="py-3 px-4 text-slate-400">{inv.date}</td>

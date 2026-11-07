@@ -52,6 +52,7 @@ export interface PriceVisibilityOptions {
 export interface Quotation {
   id: string;
   quotationNumber: string; // e.g., QT-2026-001
+  barcode?: string; // unique scannable barcode string
   date: string;
   validUntil: string;
   customerId: string;
@@ -87,6 +88,7 @@ export interface InvoicePayment {
 export interface Invoice {
   id: string;
   invoiceNumber: string; // e.g., INV-2026-001
+  barcode?: string; // unique scannable barcode string
   quotationId?: string; // linked quotation if converted
   date: string;
   dueDate: string;
@@ -144,6 +146,7 @@ export interface PurchaseItem {
 export interface PurchaseList {
   id: string;
   listNumber: string;
+  barcode?: string; // unique scannable barcode string
   date: string;
   customerName: string;
   customerPhone: string;

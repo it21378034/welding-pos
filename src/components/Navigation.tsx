@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,10 +14,12 @@ import {
   X,
   ShoppingCart,
   QrCode,
-  LogOut
+  LogOut,
+  Scan
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './Toast';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
   const { activeTab, setActiveTab, t, settings, isOnline, syncError, currentUser, logout } = useApp();
@@ -177,6 +179,19 @@ export const Sidebar: React.FC<{ isOpen?: boolean; onClose?: () => void }> = ({ 
 export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobileMenu }) => {
   const { theme, toggleTheme, language, setLanguage, role, setRole, settings, currentUser, logout } = useApp();
   const { showConfirm } = useToast();
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+
+  // Keyboard shortcut listener: F2 or Ctrl+B / Cmd+B triggers barcode scanner
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
+        e.preventDefault();
+        setIsBarcodeScannerOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   return (
     <header className="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between text-slate-200 shrink-0 print:hidden">
@@ -206,6 +221,17 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        {/* Global Barcode Scanner Button */}
+        <button
+          onClick={() => setIsBarcodeScannerOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-amber-500/10 text-amber-400 hover:text-amber-300 border border-slate-700/60 hover:border-amber-500/40 text-xs font-bold transition shadow-sm group"
+          title="Scan Barcode / Barcode Quick Lookup (Shortcut: F2 or Ctrl+B)"
+        >
+          <Scan className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-amber-400 animate-pulse" />
+          <span className="hidden sm:inline">Scan Barcode</span>
+          <span className="hidden xl:inline px-1 py-0.2 bg-slate-700 text-[9px] text-slate-400 rounded font-mono font-normal">F2</span>
+        </button>
+
         {/* Logged in User Chip */}
         {currentUser && (
           <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs">
@@ -281,6 +307,12 @@ export const Navbar: React.FC<{ onOpenMobileMenu?: () => void }> = ({ onOpenMobi
           </button>
         )}
       </div>
+
+      {/* Global Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isBarcodeScannerOpen}
+        onClose={() => setIsBarcodeScannerOpen(false)}
+      />
     </header>
   );
 };

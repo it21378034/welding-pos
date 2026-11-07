@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import {
   ShoppingCart, Plus, Trash2, Printer, X, Download,
-  Package, User, Calendar, ClipboardList, Edit3, Save, Copy
+  Package, User, Calendar, ClipboardList, Edit3, Save, Copy,
+  Scan, Search
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from './Toast';
 import type { PurchaseList, PurchaseItem } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { generateBarcodeDataUrl } from '../lib/barcodeUtils';
+import { Barcode } from './Barcode';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // ─── Print Preview Component ─────────────────────────────────────────────────
@@ -84,10 +88,20 @@ const PurchasePrintView: React.FC<{
       doc.setFont('helvetica', 'normal');
       doc.text(list.date || '', pageW/2, 49, { align: 'center' });
       
-      doc.line(5, 52, pageW - 5, 52);
-      doc.text(`Client: ${list.customerName || '—'}`, 5, 57);
-      if (list.customerPhone) doc.text(`Tel: ${list.customerPhone}`, 5, 61);
-      if (list.projectName) doc.text(`Project: ${list.projectName}`, 5, 65);
+      const barcodeValue = list.barcode || list.listNumber || '';
+      if (barcodeValue) {
+        try {
+          const barcodeThermal = generateBarcodeDataUrl(barcodeValue, { height: 24, showText: false });
+          if (barcodeThermal) {
+            doc.addImage(barcodeThermal, 'PNG', pageW/2 - 24, 52, 48, 9);
+          }
+        } catch (_) {}
+      }
+
+      doc.line(5, 63, pageW - 5, 63);
+      doc.text(`Client: ${list.customerName || '—'}`, 5, 68);
+      if (list.customerPhone) doc.text(`Tel: ${list.customerPhone}`, 5, 72);
+      if (list.projectName) doc.text(`Project: ${list.projectName}`, 5, 76);
       
       const head = [['Item', 'Qty', '[ ]']];
       const body = list.items.map(item => [
@@ -98,7 +112,7 @@ const PurchasePrintView: React.FC<{
       
       // @ts-ignore
       autoTable(doc, {
-        startY: 68,
+        startY: 80,
         head,
         body,
         theme: 'plain',
@@ -173,40 +187,50 @@ const PurchasePrintView: React.FC<{
       doc.setTextColor(71, 85, 105);
       doc.text(`Date: ${list.date || ''}`, pageW - 14, 30, { align: 'right' });
 
+      // Embed Barcode in A4 PDF
+      const barcodeValue = list.barcode || list.listNumber || '';
+      if (barcodeValue) {
+        try {
+          const barcodeA4 = generateBarcodeDataUrl(barcodeValue, { height: 26, showText: false });
+          if (barcodeA4) {
+            doc.addImage(barcodeA4, 'PNG', pageW - 64, 33, 50, 9);
+          }
+        } catch (_) {}
+      }
+
       doc.setDrawColor(15, 23, 42);
       doc.setLineWidth(0.5);
-      doc.line(14, 40, pageW - 14, 40);
+      doc.line(14, 45, pageW - 14, 45);
 
       doc.setFillColor(248, 250, 252);
-      doc.roundedRect(14, 44, pageW - 28, 26, 2, 2, 'F');
+      doc.roundedRect(14, 49, pageW - 28, 26, 2, 2, 'F');
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(148, 163, 184);
-      doc.text('CUSTOMER DETAILS', 18, 50);
+      doc.text('CUSTOMER DETAILS', 18, 55);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text(list.customerName || '—', 18, 56);
+      doc.text(list.customerName || '—', 18, 61);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(71, 85, 105);
-      doc.text(list.customerPhone || '', 18, 61);
+      doc.text(list.customerPhone || '', 18, 66);
 
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(148, 163, 184);
-      doc.text('PROJECT / PURPOSE', pageW / 2 + 2, 50);
+      doc.text('PROJECT / PURPOSE', pageW / 2 + 2, 55);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
       const projLines = doc.splitTextToSize(list.projectName || '—', (pageW / 2) - 20);
-      doc.text(projLines, pageW / 2 + 2, 56);
+      doc.text(projLines, pageW / 2 + 2, 61);
 
       const head = [['#', 'Item / Material Description', 'Unit', 'Qty', 'Collected', 'Checked']];
       const body = list.items.map((item, idx) => [
         `${idx + 1}`,
-        item.name + (item.notes ? `
-${item.notes}` : ''),
+        item.name + (item.notes ? `\n${item.notes}` : ''),
         item.unit,
         `${item.quantity}`,
         '',
@@ -215,7 +239,7 @@ ${item.notes}` : ''),
 
       // @ts-ignore
       autoTable(doc, {
-        startY: 74,
+        startY: 80,
         head,
         body,
         theme: 'grid',
@@ -360,6 +384,9 @@ ${item.notes}` : ''),
                 <h2 className="text-3xl font-black text-slate-900 uppercase tracking-wide">PURCHASE LIST</h2>
                 <p className="font-mono text-base font-bold text-amber-600">{list.listNumber}</p>
                 <p className="text-xs text-slate-600">Date: <span className="font-semibold">{list.date}</span></p>
+                <div className="pt-1 flex justify-end">
+                  <Barcode value={list.barcode || list.listNumber} height={26} barWidth={1.2} showText={true} />
+                </div>
               </div>
             </div>
 
@@ -456,6 +483,9 @@ ${item.notes}` : ''),
               <p className="font-black uppercase text-xs">PURCHASE LIST</p>
               <p className="font-bold text-[10px]">{list.listNumber}</p>
               <p className="text-[9px]">{list.date}</p>
+              <div className="pt-1 flex justify-center">
+                <Barcode value={list.barcode || list.listNumber} height={24} barWidth={1.1} showText={false} />
+              </div>
             </div>
 
             <div className="border-b border-black pb-1.5">
@@ -530,6 +560,8 @@ export const PurchaseListModule: React.FC = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Form state
   const [customerName, setCustomerName] = useState('');
@@ -851,6 +883,40 @@ export const PurchaseListModule: React.FC = () => {
         </div>
       )}
 
+      {/* Search & Barcode Scan Bar */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search purchase lists by number, customer, project or barcode..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm transition"
+          />
+        </div>
+        <button
+          onClick={() => setIsScannerOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500 text-amber-400 text-xs font-bold transition shrink-0 shadow-sm"
+          title="Scan Barcode"
+        >
+          <Scan className="w-4 h-4" />
+          <span className="hidden sm:inline">Scan Barcode</span>
+        </button>
+      </div>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onSelectDocument={res => {
+          if (res.type === 'purchase-list') {
+            setSearchTerm((res.data as PurchaseList).listNumber);
+            setIsScannerOpen(false);
+          }
+        }}
+      />
+
       {/* ── List Table ────────────────────────────────────────────────────── */}
       {purchaseLists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -868,7 +934,14 @@ export const PurchaseListModule: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {purchaseLists.map(list => (
+          {purchaseLists
+            .filter(list =>
+              (list.listNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (list.barcode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (list.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (list.projectName || '').toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .map(list => (
             <div key={list.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition shadow-lg">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-4">
@@ -878,6 +951,10 @@ export const PurchaseListModule: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black text-slate-100 text-base">{list.listNumber}</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 text-amber-400 font-mono text-[11px] font-bold border border-slate-700">
+                        <Scan className="w-3 h-3 text-amber-500" />
+                        {list.barcode || list.listNumber}
+                      </span>
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
                         {list.items.length} item{list.items.length !== 1 ? 's' : ''}
                       </span>

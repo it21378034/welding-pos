@@ -15,9 +15,11 @@ import {
   Edit3, 
   Search,
   PenTool,
-  Sparkles
+  Sparkles,
+  Scan
 } from 'lucide-react';
 import { ScanQuotationModal } from './ScanQuotationModal';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { useToast } from './Toast';
 
 export const QuotationModule: React.FC = () => {
@@ -39,6 +41,7 @@ export const QuotationModule: React.FC = () => {
   const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
 
   // Form State for Create/Edit
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -248,6 +251,7 @@ export const QuotationModule: React.FC = () => {
   const filteredQuotations = quotations.filter(
     q =>
       q.quotationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (q.barcode && q.barcode.toLowerCase().includes(searchTerm.toLowerCase())) ||
       q.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       q.projectName.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -297,16 +301,37 @@ export const QuotationModule: React.FC = () => {
       {/* LIST VIEW */}
       {activeView === 'list' && (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder={t('searchPlaceholder')}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm transition"
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Search quotations by number, customer, project or barcode..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm transition"
+              />
+            </div>
+            <button
+              onClick={() => setIsBarcodeScannerOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500 text-amber-400 text-xs font-bold transition shrink-0 shadow-sm"
+              title="Scan Quotation Barcode"
+            >
+              <Scan className="w-4 h-4" />
+              <span className="hidden sm:inline">Scan Barcode</span>
+            </button>
           </div>
+
+          <BarcodeScannerModal
+            isOpen={isBarcodeScannerOpen}
+            onClose={() => setIsBarcodeScannerOpen(false)}
+            onSelectDocument={res => {
+              if (res.type === 'quotation') {
+                setSearchTerm((res.data as Quotation).quotationNumber);
+                setIsBarcodeScannerOpen(false);
+              }
+            }}
+          />
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
@@ -326,7 +351,15 @@ export const QuotationModule: React.FC = () => {
                 <tbody className="divide-y divide-slate-800">
                   {filteredQuotations.map(q => (
                     <tr key={q.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-amber-400">{q.quotationNumber}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono font-bold text-amber-400">{q.quotationNumber}</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                            <Scan className="w-2.5 h-2.5 text-amber-500" />
+                            {q.barcode || q.quotationNumber}
+                          </span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 font-semibold text-slate-100">{q.customerName}</td>
                       <td className="py-3 px-4 text-slate-400 max-w-[200px] truncate">{q.projectName}</td>
                       <td className="py-3 px-4 text-slate-400">{q.date}</td>
