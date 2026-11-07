@@ -315,8 +315,17 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
                   type="text"
                   value={scanInput}
                   onChange={e => {
-                    setScanInput(e.target.value);
-                    handleLookup(e.target.value);
+                    const val = e.target.value;
+                    setScanInput(val);
+                    // Auto-lookup only when input looks like a complete document number
+                    // (barcode gun sends full code at once, typically 10+ chars ending with Enter)
+                    // We trigger immediately on full match patterns to support gun scanning
+                    if (val.trim().length >= 10) {
+                      handleLookup(val);
+                    } else if (!val.trim()) {
+                      setMatchResult(null);
+                      setSearched(false);
+                    }
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="Scan barcode with gun or type code (e.g. QT-2026-001, INV-2026-001, PL-2026-001)..."

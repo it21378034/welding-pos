@@ -271,22 +271,6 @@ export function findDocumentByBarcode(
     return { type: 'purchase-list', data: matchedPurchaseList };
   }
 
-  // 4. Fallback: fuzzy/partial match on number or id
-  const partialQuo = quotations.find(
-    q => q.quotationNumber && q.quotationNumber.toUpperCase().includes(code)
-  );
-  if (partialQuo) return { type: 'quotation', data: partialQuo };
-
-  const partialInv = invoices.find(
-    inv => inv.invoiceNumber && inv.invoiceNumber.toUpperCase().includes(code)
-  );
-  if (partialInv) return { type: 'invoice', data: partialInv };
-
-  const partialPl = purchaseLists.find(
-    pl => pl.listNumber && pl.listNumber.toUpperCase().includes(code)
-  );
-  if (partialPl) return { type: 'purchase-list', data: partialPl };
-
   return null;
 }
 

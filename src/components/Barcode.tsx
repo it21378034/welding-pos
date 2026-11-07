@@ -31,8 +31,8 @@ export const Barcode: React.FC<BarcodeProps> = ({
   const { bars, totalModules } = encodeCode128B(value);
   const quietZoneModules = 10;
   const totalSvgWidth = (totalModules + quietZoneModules * 2) * barWidth;
-  const textHeight = showText ? 14 : 0;
-  const totalSvgHeight = height + textHeight + 2;
+  const textHeight = showText ? 16 : 0;
+  const totalSvgHeight = height + textHeight + 4;
 
   let currentModule = quietZoneModules;
 
@@ -62,7 +62,7 @@ export const Barcode: React.FC<BarcodeProps> = ({
         {showText && (
           <text
             x={totalSvgWidth / 2}
-            y={height + 11}
+            y={height + 13}
             textAnchor="middle"
             fill={color}
             fontFamily="monospace, Courier, monospace"

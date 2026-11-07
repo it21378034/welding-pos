@@ -138,13 +138,19 @@ export const PrintView: React.FC = () => {
     if (barcodeValue) {
       try {
         const barcodePdfBase64 = generateBarcodeDataUrl(barcodeValue, {
-          height: 28,
-          moduleWidth: 2,
+          height: 32,
+          moduleWidth: 1.8,
           showText: false,
           bgColor: '#eff6ff',
         });
         if (barcodePdfBase64) {
-          doc.addImage(barcodePdfBase64, 'PNG', pageW - 64, 39, 50, 11);
+          // Draw barcode bars image (right-aligned in header)
+          doc.addImage(barcodePdfBase64, 'PNG', pageW - 66, 38, 52, 12);
+          // Draw the barcode text label underneath (using jsPDF text so it always shows)
+          doc.setFontSize(7);
+          doc.setFont('courier', 'bold');
+          doc.setTextColor(30, 58, 138);
+          doc.text(barcodeValue, pageW - 40, 53, { align: 'center' });
         }
       } catch (e) {
         console.warn('Failed to embed barcode in PDF', e);
@@ -522,8 +528,9 @@ export const PrintView: React.FC = () => {
       backgroundColor: '#eff6ff',
       borderBottom: '2px solid #1e3a8a',
       borderRadius: '8px 8px 0 0',
-      padding: '16px 20px 16px 16px',
+      padding: '16px 20px 12px 16px',
       marginBottom: '20px',
+      overflow: 'visible',
     },
     logoArea: { display: 'flex', alignItems: 'center', gap: '12px' },
     logo: {
@@ -544,7 +551,7 @@ export const PrintView: React.FC = () => {
     },
     tagline: { fontSize: '11px', color: '#64748b', fontStyle: 'italic', margin: '0 0 2px 0' },
     companyInfo: { fontSize: '11px', color: '#64748b', margin: '1px 0' },
-    docTypeBlock: { textAlign: 'right' },
+    docTypeBlock: { textAlign: 'right' as const, display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-end', justifyContent: 'space-between' },
     docType: {
       fontSize: '28px',
       fontWeight: '900',
@@ -710,8 +717,8 @@ export const PrintView: React.FC = () => {
                 <p style={styles.docMeta}>Due Date: <strong>{invoiceData?.dueDate}</strong></p>
               )}
               {/* Unique Scannable Barcode */}
-              <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-                <Barcode value={barcodeValue} height={26} barWidth={1.2} showText={true} />
+              <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end', overflow: 'visible' }}>
+                <Barcode value={barcodeValue} height={30} barWidth={1.1} showText={true} color="#1e3a8a" />
               </div>
             </div>
           </div>
